@@ -1,0 +1,15 @@
+{
+  "name": "fitbank-agente",
+  "version": "1.0.0",
+  "description": "Super Agente de Atendimento FitBank — Setup e infraestrutura",
+  "scripts": {
+    "setup": "node setup.js",
+    "test": "node test-nodes.js && node test-e2e-simulado.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}

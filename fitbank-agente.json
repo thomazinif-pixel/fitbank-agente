@@ -1,0 +1,260 @@
+{
+  "name": "FitBank - Super Agente de Atendimento",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fitbank-agente",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "fitbank-agente-webhook",
+      "notes": "URL será: https://seu-n8n.com/webhook/fitbank-agente\nBody esperado: { \"question\": \"mensagem do atendente\" }"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai e valida a pergunta do atendente\nconst body = $input.item.json.body || $input.item.json;\nconst question = body.question || body.pergunta || '';\n\nif (!question || question.trim() === '') {\n  throw new Error('Campo \"question\" é obrigatório no body da requisição.');\n}\n\nreturn {\n  question: question.trim(),\n  timestamp: new Date().toISOString()\n};"
+      },
+      "name": "Validar Pergunta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{$json.question}}\"\n}",
+        "options": {}
+      },
+      "name": "Vetorizar Pergunta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300],
+      "notes": "Converte a pergunta do atendente em vetor numérico para busca semântica"
+    },
+    {
+      "parameters": {
+        "url": "https://{{$env.PINECONE_INDEX_HOST}}/query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Api-Key",
+              "value": "{{$env.PINECONE_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"vector\": {{JSON.stringify($json.data[0].embedding)}},\n  \"topK\": 5,\n  \"includeMetadata\": true,\n  \"namespace\": \"fitbank-tickets\"\n}",
+        "options": {}
+      },
+      "name": "Buscar Tickets Similares",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300],
+      "notes": "Retorna os 5 tickets mais similares do histórico do Zendesk"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta o prompt completo com contexto dos tickets similares\nconst matches = $input.item.json.matches || [];\nconst question = $('Validar Pergunta').item.json.question;\n\n// Formata os tickets similares encontrados\nlet contextoTickets = '';\nif (matches.length > 0) {\n  contextoTickets = matches.map((m, i) => {\n    const meta = m.metadata || {};\n    const score = Math.round(m.score * 100);\n    return `[Ticket ${i + 1} - Similaridade: ${score}%]\\nAssunto: ${meta.subject || 'N/A'}\\nDescrição: ${meta.description || 'N/A'}\\nStatus: ${meta.status || 'N/A'}`;\n  }).join('\\n\\n---\\n\\n');\n} else {\n  contextoTickets = 'Nenhum ticket similar encontrado na base histórica.';\n}\n\n// System prompt do Super Agente FitBank\nconst systemPrompt = `IDENTIDADE DO AGENTE\n\nVocê é o Super Agente de Atendimento do Fitbank, projetado para ajudar analistas de atendimento a resolver problemas de clientes rapidamente e com precisão.\n\nVocê atua como um copiloto do atendente, oferecendo diagnóstico e orientações claras.\nVocê NÃO atende clientes finais diretamente.\nSeu objetivo é capacitar o atendente a resolver o problema no primeiro contato.\n\nMETA OPERACIONAL: FCR ≥ 70%\n\nPERFIL DOS USUÁRIOS\nAnalistas de atendimento do Fitbank. Eles não são especialistas em tecnologia:\n- Explique de forma simples\n- Use linguagem clara\n- Forneça passos práticos\n- Evite jargões técnicos (ou explique quando usar)\n\nCATEGORIAS POSSÍVEIS: PIX | BOLETO | CARTÃO | SALDO/CONTA | TRANSFERÊNCIAS | INTEGRAÇÃO API | ONBOARDING | ANTIFRAUDE | CONCILIAÇÃO | LIMITE OPERACIONAL\n\nPLAYBOOKS:\n\nPIX NÃO RECEBIDO: 1) Confirmar débito na conta 2) Consultar status da transação 3) Verificar retorno do SPI (Banco Central) 4) Confirmar chave do destinatário 5) Validar liquidação. Escalar se houver divergência financeira.\n\nBOLETO PAGO NÃO BAIXADO: 1) Confirmar comprovante 2) Verificar data de pagamento 3) Checar retorno bancário 4) Conferir registro de pagamento 5) Validar linha digitável\n\nCARTÃO NEGADO: 1) Verificar status do cartão 2) Conferir limite disponível 3) Checar código de recusa 4) Validar bloqueio antifraude 5) Confirmar se MCC do estabelecimento é permitido\n\nSALDO INCORRETO: 1) Consultar registro interno de saldo (ledger) 2) Conferir transações recentes 3) Identificar reservas ativas 4) Verificar conciliação\n\nERRO DE API: 1) Validar endpoint 2) Conferir token de autenticação 3) Revisar payload 4) Ver logs 5) Confirmar webhook ativo\n\nGLOSSÁRIO (sempre explique esses termos):\n- Ledger = registro interno de saldo\n- SPI = infraestrutura do Banco Central para PIX\n- MCC = código que classifica tipo de estabelecimento\n- D+1 = próximo dia útil\n- KYC = verificação de identidade\n- Webhook = notificação automática para sistemas externos\n- Payload = dados enviados numa requisição de API\n\nESTRUTURA DE RESPOSTA OBRIGATÓRIA:\n📌 Entendimento do problema\n🏷 Categoria do problema\n🔎 Causa mais provável\n✅ Como resolver agora (passo a passo simples)\n📎 Informações necessárias (o que coletar do cliente)\n🚨 Quando escalar\n\nPROIBIÇÕES: Nunca invente procedimentos, nunca responda vagamente, nunca escale sem diagnóstico.\n\nAo responder, sempre pense: \"Essa resposta ajuda o atendente a resolver o problema AGORA?\"\\n`;\n\n// Prompt do usuário com contexto dos tickets\nconst userPrompt = `TICKETS HISTÓRICOS SIMILARES (Base Zendesk):\\n\\n${contextoTickets}\\n\\n---\\n\\nPERGUNTA DO ATENDENTE:\\n${question}\\n\\nResponda seguindo a estrutura obrigatória.`;\n\nreturn {\n  systemPrompt,\n  userPrompt,\n  question,\n  ticketsEncontrados: matches.length\n};"
+      },
+      "name": "Montar Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": {{JSON.stringify($json.systemPrompt)}}\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{JSON.stringify($json.userPrompt)}}\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 1500\n}",
+        "options": {}
+      },
+      "name": "Chamar GPT-4o",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 300],
+      "notes": "temperature 0.3 = respostas mais consistentes e previsíveis"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai a resposta do GPT e prepara para o frontend\nconst gptResponse = $input.item.json;\nconst resposta = gptResponse.choices[0].message.content;\nconst question = $('Montar Prompt').item.json.question;\nconst ticketsEncontrados = $('Montar Prompt').item.json.ticketsEncontrados;\n\nreturn {\n  sucesso: true,\n  resposta: resposta,\n  metadados: {\n    pergunta_original: question,\n    tickets_utilizados: ticketsEncontrados,\n    modelo: 'gpt-4o',\n    tokens_usados: gptResponse.usage?.total_tokens || 0,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Formatar Resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{JSON.stringify($json)}}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "name": "Retornar Resposta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validar Pergunta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Pergunta": {
+      "main": [
+        [
+          {
+            "node": "Vetorizar Pergunta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vetorizar Pergunta": {
+      "main": [
+        [
+          {
+            "node": "Buscar Tickets Similares",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Tickets Similares": {
+      "main": [
+        [
+          {
+            "node": "Montar Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Prompt": {
+      "main": [
+        [
+          {
+            "node": "Chamar GPT-4o",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamar GPT-4o": {
+      "main": [
+        [
+          {
+            "node": "Formatar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Resposta": {
+      "main": [
+        [
+          {
+            "node": "Retornar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fitbank-agente-v1",
+  "tags": [
+    { "name": "fitbank" },
+    { "name": "agente" },
+    { "name": "atendimento" }
+  ],
+  "_instrucoes": {
+    "variaveis_de_ambiente": {
+      "OPENAI_API_KEY": "Sua chave de API da OpenAI",
+      "PINECONE_API_KEY": "Sua chave de API do Pinecone",
+      "PINECONE_INDEX_HOST": "URL do host do índice (ex: https://xxx.svc.pinecone.io)"
+    },
+    "webhook_url": "https://seu-n8n.com/webhook/fitbank-agente",
+    "body_exemplo": {
+      "question": "O cliente fez um PIX mas o destinatário não recebeu. O saldo foi debitado normalmente."
+    },
+    "ativar_workflow": "Após importar, clique em 'Activate' no canto superior direito do n8n"
+  }
+}

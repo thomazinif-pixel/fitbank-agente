@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Super Agente FitBank</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    header {
+      width: 100%;
+      max-width: 800px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      background: #1a56db;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 20px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .header-text h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .header-text p {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .badge-fcr {
+      margin-left: auto;
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #6ee7b7;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 800px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .input-area label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+
+    .input-area textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 12px 14px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+      color: #111827;
+    }
+
+    .input-area textarea:focus {
+      border-color: #1a56db;
+    }
+
+    .input-area textarea::placeholder {
+      color: #9ca3af;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      align-items: center;
+    }
+
+    .btn-consultar {
+      background: #1a56db;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-consultar:hover:not(:disabled) { background: #1e40af; }
+    .btn-consultar:disabled { background: #93c5fd; cursor: not-allowed; }
+
+    .btn-limpar {
+      background: transparent;
+      color: #6b7280;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-limpar:hover { border-color: #9ca3af; color: #374151; }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .resultado-card {
+      width: 100%;
+      max-width: 800px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      padding: 24px;
+      display: none;
+    }
+
+    .resultado-titulo {
+      font-size: 13px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .resultado-titulo .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    .resposta-texto {
+      font-size: 15px;
+      line-height: 1.7;
+      color: #111827;
+      white-space: pre-wrap;
+    }
+
+    .secao {
+      margin-bottom: 20px;
+      padding: 16px;
+      border-radius: 10px;
+      background: #f9fafb;
+      border-left: 3px solid #e5e7eb;
+    }
+
+    .secao.entendimento { border-left-color: #3b82f6; }
+    .secao.categoria    { border-left-color: #8b5cf6; }
+    .secao.causa        { border-left-color: #f59e0b; }
+    .secao.resolver     { border-left-color: #10b981; }
+    .secao.informacoes  { border-left-color: #6b7280; }
+    .secao.escalar      { border-left-color: #ef4444; }
+
+    .meta-info {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid #f3f4f6;
+      font-size: 12px;
+      color: #9ca3af;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .erro-card {
+      width: 100%;
+      max-width: 800px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 12px;
+      padding: 16px 20px;
+      color: #b91c1c;
+      font-size: 14px;
+      display: none;
+    }
+
+    .config-aviso {
+      width: 100%;
+      max-width: 800px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #92400e;
+    }
+
+    .config-aviso strong { color: #78350f; }
+    .config-aviso code {
+      background: #fef3c7;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    .config-aviso .webhook-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .config-aviso input[type="text"] {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1.5px solid #fde68a;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: monospace;
+      background: white;
+      color: #111827;
+      outline: none;
+    }
+
+    .config-aviso input[type="text"]:focus { border-color: #f59e0b; }
+
+    .config-aviso .btn-salvar-webhook {
+      background: #d97706;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .config-aviso .btn-salvar-webhook:hover { background: #b45309; }
+
+    .webhook-configurado {
+      width: 100%;
+      max-width: 800px;
+      background: #ecfdf5;
+      border: 1px solid #6ee7b7;
+      border-radius: 12px;
+      padding: 10px 18px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #065f46;
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .webhook-configurado button {
+      background: transparent;
+      border: 1px solid #6ee7b7;
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 12px;
+      color: #065f46;
+      cursor: pointer;
+    }
+
+    .exemplos {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .exemplo-btn {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .exemplo-btn:hover { background: #dbeafe; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">F</div>
+    <div class="header-text">
+      <h1>Super Agente FitBank</h1>
+      <p>Copiloto de atendimento para analistas</p>
+    </div>
+    <div class="badge-fcr">Meta FCR ≥ 70%</div>
+  </header>
+
+  <!-- Webhook configurado -->
+  <div class="webhook-configurado" id="webhookConfigurado">
+    <span>✅ Webhook n8n configurado</span>
+    <button onclick="resetarWebhook()">Alterar</button>
+  </div>
+
+  <!-- Painel de configuração webhook -->
+  <div class="config-aviso" id="avisoConfig">
+    ⚙️ <strong>Configure a URL do webhook n8n:</strong> cole a URL do workflow ativo no n8n Cloud.
+    <div class="webhook-input-row">
+      <input
+        type="text"
+        id="webhookInput"
+        placeholder="https://seu-workspace.app.n8n.cloud/webhook/fitbank-agente"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button class="btn-salvar-webhook" onclick="salvarWebhook()">Salvar</button>
+    </div>
+  </div>
+
+  <!-- Card de input -->
+  <div class="card">
+    <div class="input-area">
+      <label for="pergunta">Descreva o problema do cliente:</label>
+      <textarea
+        id="pergunta"
+        placeholder="Ex: O cliente realizou um PIX de R$ 500 às 14h mas o destinatário diz que não recebeu. O saldo foi debitado normalmente da conta."
+      ></textarea>
+    </div>
+
+    <div class="exemplos">
+      <span style="font-size:13px; color:#6b7280; align-self:center;">Exemplos rápidos:</span>
+      <button class="exemplo-btn" onclick="preencherExemplo('PIX debitado mas destinatário não recebeu o valor')">PIX não recebido</button>
+      <button class="exemplo-btn" onclick="preencherExemplo('Boleto foi pago ontem mas ainda aparece como aberto no sistema')">Boleto não baixado</button>
+      <button class="exemplo-btn" onclick="preencherExemplo('Cartão do cliente está sendo negado no estabelecimento')">Cartão negado</button>
+      <button class="exemplo-btn" onclick="preencherExemplo('Cliente relata que o saldo está incorreto, valor menor do que o esperado')">Saldo incorreto</button>
+      <button class="exemplo-btn" onclick="preencherExemplo('API retornando erro 401 ao tentar fazer requisição')">Erro de API</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-consultar" id="btnConsultar" onclick="consultarAgente()">
+        <span id="btnTexto">Consultar Agente</span>
+        <div class="spinner" id="spinner"></div>
+      </button>
+      <button class="btn-limpar" onclick="limpar()">Limpar</button>
+    </div>
+  </div>
+
+  <!-- Card de erro -->
+  <div class="erro-card" id="erroCard">
+    <strong>Erro:</strong> <span id="erroMensagem"></span>
+  </div>
+
+  <!-- Card de resultado -->
+  <div class="resultado-card" id="resultadoCard">
+    <div class="resultado-titulo">
+      <div class="dot"></div>
+      Orientação do Agente
+    </div>
+    <div id="respostaConteudo"></div>
+    <div class="meta-info" id="metaInfo"></div>
+  </div>
+
+  <script>
+    // ============================================================
+    // WEBHOOK URL — lida dinamicamente (sem editar este arquivo)
+    // Prioridade: ?webhook= na URL → localStorage → pede ao usuário
+    // ============================================================
+    function getWebhookURL() {
+      const params = new URLSearchParams(window.location.search);
+      const fromParam = params.get('webhook');
+      if (fromParam) {
+        localStorage.setItem('fitbank_webhook_url', fromParam);
+        return fromParam;
+      }
+      return localStorage.getItem('fitbank_webhook_url') || '';
+    }
+
+    function salvarWebhook() {
+      const url = document.getElementById('webhookInput').value.trim();
+      if (!url.startsWith('http')) {
+        alert('URL inválida. Deve começar com https://');
+        return;
+      }
+      localStorage.setItem('fitbank_webhook_url', url);
+      atualizarEstadoWebhook();
+    }
+
+    function resetarWebhook() {
+      localStorage.removeItem('fitbank_webhook_url');
+      atualizarEstadoWebhook();
+    }
+
+    function atualizarEstadoWebhook() {
+      const url = getWebhookURL();
+      const aviso = document.getElementById('avisoConfig');
+      const confirmado = document.getElementById('webhookConfigurado');
+      if (url) {
+        aviso.style.display = 'none';
+        confirmado.style.display = 'flex';
+      } else {
+        aviso.style.display = 'block';
+        confirmado.style.display = 'none';
+      }
+    }
+
+    // Inicializa estado ao carregar a página
+    atualizarEstadoWebhook();
+
+    function preencherExemplo(texto) {
+      document.getElementById('pergunta').value = texto;
+      document.getElementById('pergunta').focus();
+    }
+
+    function limpar() {
+      document.getElementById('pergunta').value = '';
+      document.getElementById('resultadoCard').style.display = 'none';
+      document.getElementById('erroCard').style.display = 'none';
+      document.getElementById('pergunta').focus();
+    }
+
+    async function consultarAgente() {
+      const pergunta = document.getElementById('pergunta').value.trim();
+
+      if (!pergunta) {
+        alert('Por favor, descreva o problema do cliente.');
+        return;
+      }
+
+      // UI loading
+      const btn = document.getElementById('btnConsultar');
+      const spinner = document.getElementById('spinner');
+      const btnTexto = document.getElementById('btnTexto');
+      btn.disabled = true;
+      spinner.style.display = 'block';
+      btnTexto.textContent = 'Consultando...';
+      document.getElementById('resultadoCard').style.display = 'none';
+      document.getElementById('erroCard').style.display = 'none';
+
+      const webhookURL = getWebhookURL();
+      if (!webhookURL) {
+        document.getElementById('avisoConfig').style.display = 'block';
+        document.getElementById('avisoConfig').scrollIntoView({ behavior: 'smooth' });
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        btnTexto.textContent = 'Consultar Agente';
+        return;
+      }
+
+      try {
+        const response = await fetch(webhookURL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: pergunta })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erro HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.sucesso) {
+          throw new Error(data.erro || 'Resposta inválida do agente.');
+        }
+
+        renderizarResposta(data);
+
+      } catch (err) {
+        document.getElementById('erroMensagem').textContent = err.message;
+        document.getElementById('erroCard').style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        btnTexto.textContent = 'Consultar Agente';
+      }
+    }
+
+    function renderizarResposta(data) {
+      const resposta = data.resposta || '';
+      const meta = data.metadados || {};
+
+      // Mapeamento de ícones para classes CSS
+      const secoes = [
+        { emoji: '📌', classe: 'entendimento' },
+        { emoji: '🏷',  classe: 'categoria' },
+        { emoji: '🔎', classe: 'causa' },
+        { emoji: '✅', classe: 'resolver' },
+        { emoji: '📎', classe: 'informacoes' },
+        { emoji: '🚨', classe: 'escalar' },
+      ];
+
+      // Tenta dividir resposta nas seções do prompt
+      let html = '';
+      let textoRestante = resposta;
+
+      // Divide por cada emoji de seção
+      const separadores = secoes.map(s => s.emoji);
+      const partes = [];
+      let atual = '';
+
+      for (const linha of resposta.split('\n')) {
+        const emojiEncontrado = separadores.find(e => linha.startsWith(e));
+        if (emojiEncontrado) {
+          if (atual.trim()) partes.push(atual.trim());
+          atual = linha + '\n';
+        } else {
+          atual += linha + '\n';
+        }
+      }
+      if (atual.trim()) partes.push(atual.trim());
+
+      if (partes.length > 1) {
+        // Renderiza cada seção com estilo
+        html = partes.map(parte => {
+          const emoji = separadores.find(e => parte.startsWith(e));
+          const secao = secoes.find(s => s.emoji === emoji);
+          const classe = secao ? secao.classe : '';
+          return `<div class="secao ${classe}"><div class="resposta-texto">${escapeHtml(parte)}</div></div>`;
+        }).join('');
+      } else {
+        // Fallback: exibe como texto corrido
+        html = `<div class="resposta-texto">${escapeHtml(resposta)}</div>`;
+      }
+
+      document.getElementById('respostaConteudo').innerHTML = html;
+
+      // Meta info
+      let metaHtml = '';
+      if (meta.tickets_utilizados !== undefined) {
+        metaHtml += `<span>📚 ${meta.tickets_utilizados} ticket(s) histórico(s) consultado(s)</span>`;
+      }
+      if (meta.modelo) {
+        metaHtml += `<span>🤖 Modelo: ${meta.modelo}</span>`;
+      }
+      if (meta.tokens_usados) {
+        metaHtml += `<span>⚡ ${meta.tokens_usados} tokens</span>`;
+      }
+      if (meta.timestamp) {
+        const hora = new Date(meta.timestamp).toLocaleTimeString('pt-BR');
+        metaHtml += `<span>🕐 ${hora}</span>`;
+      }
+      document.getElementById('metaInfo').innerHTML = metaHtml;
+
+      document.getElementById('resultadoCard').style.display = 'block';
+      document.getElementById('resultadoCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function escapeHtml(texto) {
+      return texto
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Atalho: Enter + Ctrl/Cmd envia
+    document.getElementById('pergunta').addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        consultarAgente();
+      }
+    });
+  </script>
+
+</body>
+</html>

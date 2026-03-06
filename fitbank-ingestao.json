@@ -1,0 +1,260 @@
+{
+  "name": "FitBank - Ingestão Zendesk → Pinecone",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "notes": "Executa todo dia. Pode executar manualmente na primeira vez."
+    },
+    {
+      "parameters": {
+        "url": "https://{{$env.ZENDESK_SUBDOMAIN}}.zendesk.com/api/v2/tickets.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "solved"
+            },
+            {
+              "name": "per_page",
+              "value": "100"
+            },
+            {
+              "name": "sort_by",
+              "value": "updated_at"
+            },
+            {
+              "name": "sort_order",
+              "value": "desc"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Buscar Tickets Zendesk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "name": "Zendesk Basic Auth"
+        }
+      },
+      "notes": "Auth: email/token. User: seu_email@empresa.com/token, Password: seu_api_token_zendesk"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "tickets",
+        "options": {}
+      },
+      "name": "Separar Tickets",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "name": "Lotes de 10",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formata o texto do ticket para gerar embedding\nconst ticket = $input.item.json;\n\n// Categoria baseada em tags ou assunto\nconst subject = ticket.subject || '';\nconst description = ticket.description || ticket.raw_subject || '';\n\n// Monta texto rico para embedding semântico\nconst texto = `Assunto: ${subject}\\nDescrição: ${description}\\nStatus: ${ticket.status}\\nPrioridade: ${ticket.priority || 'normal'}`;\n\nreturn {\n  ticket_id: String(ticket.id),\n  subject: subject,\n  description: description,\n  status: ticket.status,\n  priority: ticket.priority || 'normal',\n  created_at: ticket.created_at,\n  updated_at: ticket.updated_at,\n  texto_para_embedding: texto\n};"
+      },
+      "name": "Formatar Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{$json.texto_para_embedding}}\"\n}",
+        "options": {}
+      },
+      "name": "Gerar Embedding OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 300],
+      "notes": "Gera vetor de 1536 dimensões para o texto do ticket"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepara o payload para o Pinecone\nconst embedding = $input.item.json.data[0].embedding;\nconst ticket = $('Formatar Ticket').item.json;\n\nreturn {\n  vectors: [\n    {\n      id: `zendesk-${ticket.ticket_id}`,\n      values: embedding,\n      metadata: {\n        ticket_id: ticket.ticket_id,\n        subject: ticket.subject,\n        description: ticket.description.substring(0, 500),\n        status: ticket.status,\n        priority: ticket.priority,\n        source: 'zendesk',\n        updated_at: ticket.updated_at\n      }\n    }\n  ],\n  namespace: 'fitbank-tickets'\n};"
+      },
+      "name": "Preparar Payload Pinecone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://{{$env.PINECONE_INDEX_HOST}}/vectors/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Api-Key",
+              "value": "{{$env.PINECONE_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify($json)}}",
+        "options": {}
+      },
+      "name": "Salvar no Pinecone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1780, 300],
+      "notes": "PINECONE_INDEX_HOST: encontre em Index > Connect no painel do Pinecone"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Buscar Tickets Zendesk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Tickets Zendesk": {
+      "main": [
+        [
+          {
+            "node": "Separar Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Tickets": {
+      "main": [
+        [
+          {
+            "node": "Lotes de 10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lotes de 10": {
+      "main": [
+        [
+          {
+            "node": "Formatar Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Ticket": {
+      "main": [
+        [
+          {
+            "node": "Gerar Embedding OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar Embedding OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Preparar Payload Pinecone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Payload Pinecone": {
+      "main": [
+        [
+          {
+            "node": "Salvar no Pinecone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fitbank-ingestao-v1",
+  "tags": [
+    { "name": "fitbank" },
+    { "name": "ingestao" },
+    { "name": "pinecone" }
+  ],
+  "_instrucoes": {
+    "variaveis_de_ambiente": {
+      "ZENDESK_SUBDOMAIN": "Subdomínio da sua conta Zendesk (ex: fitbank)",
+      "OPENAI_API_KEY": "Sua chave de API da OpenAI",
+      "PINECONE_API_KEY": "Sua chave de API do Pinecone",
+      "PINECONE_INDEX_HOST": "URL do host do índice (ex: https://xxx.svc.pinecone.io)"
+    },
+    "pinecone_configuracao": {
+      "dimensoes": 1536,
+      "metric": "cosine",
+      "nome_sugerido": "fitbank-zendesk"
+    },
+    "zendesk_auth": "Email/Token Basic Auth: user=email@empresa.com/token, password=seu_api_token"
+  }
+}
