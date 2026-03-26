@@ -79,7 +79,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{$('Validar Entrada').item.json.question}}\"\n}",
+        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{$('Validar Entrada').item.json.question}}\",\n  \"dimensions\": 1024\n}",
         "options": {}
       },
       "name": "Vetorizar Pergunta",

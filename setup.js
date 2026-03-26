@@ -147,16 +147,19 @@ async function main() {
           info(`  Status: ${existente.status?.state || 'desconhecido'}`);
           resultados.pinecone_key = true;
 
-          if (existente.dimension !== 1536) {
-            fail(`Dimensão incorreta: ${existente.dimension} (esperado 1536)`);
-            warn('Você precisa recriar o índice com 1536 dimensões.');
+          const dimsValidas = [1024, 1536];
+          if (!dimsValidas.includes(existente.dimension)) {
+            fail(`Dimensão incorreta: ${existente.dimension} (esperado 1024 ou 1536)`);
+            warn('Você precisa recriar o índice com 1024 ou 1536 dimensões.');
           } else {
+            ok(`Dimensão ${existente.dimension} — compatível com text-embedding-3-small`);
             resultados.pinecone_index = true;
           }
 
-          if (existente.host && !vars.PINECONE_INDEX_HOST?.includes(existente.host.split('/')[2])) {
-            warn(`PINECONE_INDEX_HOST no .env pode estar desatualizado.`);
-            info(`  Use: ${existente.host}`);
+          const hostEsperado = existente.host.replace(/^https?:\/\//, '');
+          if (existente.host && !vars.PINECONE_INDEX_HOST?.includes(hostEsperado)) {
+            warn(`PINECONE_INDEX_HOST no .env desatualizado. Atualize para:`);
+            info(`  PINECONE_INDEX_HOST=https://${hostEsperado}`);
           }
         } else {
           // 3b. Criar o índice
@@ -284,7 +287,7 @@ async function main() {
     ['Variáveis de ambiente', resultados.variaveis],
     ['OpenAI (embeddings + GPT-4o-mini + GPT-4o)', resultados.openai],
     ['Pinecone (chave)', resultados.pinecone_key],
-    ['Pinecone (índice 1536 dims)', resultados.pinecone_index],
+    ['Pinecone (índice compatível 1024/1536 dims)', resultados.pinecone_index],
     ['Upstash Redis (memória por ticket)', resultados.redis],
     ['Zendesk (API)', resultados.zendesk],
   ];
