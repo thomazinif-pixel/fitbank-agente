@@ -43,6 +43,7 @@ async function main() {
     openai: false,
     pinecone_key: false,
     pinecone_index: false,
+    redis: false,
     zendesk: false,
   };
 
@@ -52,13 +53,15 @@ async function main() {
   console.log(`${BOLD}[1/4] Verificando variáveis de ambiente...${RESET}`);
 
   const vars = {
-    OPENAI_API_KEY:     process.env.OPENAI_API_KEY,
-    PINECONE_API_KEY:   process.env.PINECONE_API_KEY,
-    PINECONE_INDEX_HOST:process.env.PINECONE_INDEX_HOST,
-    PINECONE_API_BASE:  process.env.PINECONE_API_BASE,
-    ZENDESK_SUBDOMAIN:  process.env.ZENDESK_SUBDOMAIN,
-    ZENDESK_EMAIL:      process.env.ZENDESK_EMAIL,
-    ZENDESK_API_TOKEN:  process.env.ZENDESK_API_TOKEN,
+    OPENAI_API_KEY:          process.env.OPENAI_API_KEY,
+    PINECONE_API_KEY:        process.env.PINECONE_API_KEY,
+    PINECONE_INDEX_HOST:     process.env.PINECONE_INDEX_HOST,
+    PINECONE_API_BASE:       process.env.PINECONE_API_BASE,
+    UPSTASH_REDIS_REST_URL:  process.env.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN:process.env.UPSTASH_REDIS_REST_TOKEN,
+    ZENDESK_SUBDOMAIN:       process.env.ZENDESK_SUBDOMAIN,
+    ZENDESK_EMAIL:           process.env.ZENDESK_EMAIL,
+    ZENDESK_API_TOKEN:       process.env.ZENDESK_API_TOKEN,
   };
 
   let varsFaltando = [];
@@ -194,9 +197,50 @@ async function main() {
   }
 
   // ============================================================
-  // 4. Testar Zendesk
+  // 4. Testar Upstash Redis (memória persistente)
   // ============================================================
-  console.log(`\n${BOLD}[4/4] Testando conexão com Zendesk...${RESET}`);
+  console.log(`\n${BOLD}[4/5] Testando conexão com Upstash Redis...${RESET}`);
+
+  const upstashUrl   = process.env.UPSTASH_REDIS_REST_URL;
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!upstashUrl || upstashUrl.includes('XXXXXXXX') || !upstashToken || upstashToken.includes('seu_')) {
+    warn('Pulando — credenciais Upstash não configuradas');
+    warn('Crie um banco em: https://console.upstash.com → Create Database → copie REST URL e REST Token');
+  } else {
+    try {
+      // Escreve e lê uma chave de teste
+      const testKey  = 'maria:setup:test';
+      const testVal  = `setup-${Date.now()}`;
+
+      // SET
+      const setRes = await fetch(`${upstashUrl}/set/${testKey}/${testVal}/EX/60`, {
+        headers: { Authorization: `Bearer ${upstashToken}` }
+      });
+      if (!setRes.ok) throw new Error(`SET falhou: ${setRes.status}`);
+
+      // GET
+      const getRes = await fetch(`${upstashUrl}/get/${testKey}`, {
+        headers: { Authorization: `Bearer ${upstashToken}` }
+      });
+      if (!getRes.ok) throw new Error(`GET falhou: ${getRes.status}`);
+
+      const data = await getRes.json();
+      if (data.result === testVal) {
+        ok(`Upstash Redis conectado — SET/GET funcionando`);
+        resultados.redis = true;
+      } else {
+        fail(`Redis: valor lido (${data.result}) diferente do escrito (${testVal})`);
+      }
+    } catch (e) {
+      fail(`Upstash Redis falhou: ${e.message}`);
+    }
+  }
+
+  // ============================================================
+  // 5. Testar Zendesk
+  // ============================================================
+  console.log(`\n${BOLD}[5/5] Testando conexão com Zendesk...${RESET}`);
 
   const zdSubdomain = vars.ZENDESK_SUBDOMAIN;
   const zdEmail = vars.ZENDESK_EMAIL;
@@ -238,9 +282,10 @@ async function main() {
 
   const checks = [
     ['Variáveis de ambiente', resultados.variaveis],
-    ['OpenAI (embeddings + GPT-4o)', resultados.openai],
+    ['OpenAI (embeddings + GPT-4o-mini + GPT-4o)', resultados.openai],
     ['Pinecone (chave)', resultados.pinecone_key],
     ['Pinecone (índice 1536 dims)', resultados.pinecone_index],
+    ['Upstash Redis (memória por ticket)', resultados.redis],
     ['Zendesk (API)', resultados.zendesk],
   ];
 

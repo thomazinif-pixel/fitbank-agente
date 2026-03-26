@@ -1,30 +1,69 @@
 {
-  "name": "FitBank - Super Agente de Atendimento",
+  "name": "FitBank - MarIA V3 (Classificador + Redis + RAG)",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "fitbank-agente",
         "responseMode": "responseNode",
-        "options": {
-          "allowedOrigins": "*"
-        }
+        "options": { "allowedOrigins": "*" }
       },
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 300],
-      "webhookId": "fitbank-agente-webhook",
-      "notes": "URL será: https://seu-n8n.com/webhook/fitbank-agente\nBody esperado: { \"question\": \"mensagem do atendente\" }"
+      "position": [240, 400],
+      "notes": "Body esperado:\n{\n  \"question\": \"...\",\n  \"ticket_id\": \"12345\"  (opcional — para memória contínua)\n}"
     },
     {
       "parameters": {
-        "jsCode": "// Extrai e valida a pergunta do atendente\nconst body = $input.item.json.body || $input.item.json;\nconst question = body.question || body.pergunta || '';\n\nif (!question || question.trim() === '') {\n  throw new Error('Campo \"question\" é obrigatório no body da requisição.');\n}\n\nreturn {\n  question: question.trim(),\n  timestamp: new Date().toISOString()\n};"
+        "jsCode": "// Valida entrada e normaliza ticket_id para memória Redis\nconst body = $input.item.json.body || $input.item.json;\nconst question = (body.question || body.pergunta || '').trim();\n\nif (!question) {\n  throw new Error('Campo \"question\" é obrigatório.');\n}\n\n// ticket_id: usa o fornecido ou gera um ID de sessão temporário\nconst ticket_id = String(body.ticket_id || `session-${Date.now()}`);\n\nreturn {\n  question,\n  ticket_id,\n  timestamp: new Date().toISOString()\n};"
       },
-      "name": "Validar Pergunta",
+      "name": "Validar Entrada",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 300]
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.OPENAI_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Classifique o ticket em UMA categoria. Responda APENAS em JSON válido, sem markdown.\\n\\nCategorias: PIX | BOLETO | CARTÃO | API | SALDO | ANTIFRAUDE | CONCILIAÇÃO | ONBOARDING | OUTROS\\n\\nFormato obrigatório:\\n{\\\"categoria\\\": \\\"PIX\\\", \\\"confianca\\\": 92}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Ticket: {{$json.question}}\"\n    }\n  ],\n  \"temperature\": 0,\n  \"max_tokens\": 60\n}",
+        "options": {}
+      },
+      "name": "Classificar Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 280],
+      "notes": "GPT-4o-mini (rápido e barato) — classifica categoria antes do agente principal"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.UPSTASH_REDIS_REST_URL}}/get/maria:ticket:{{$('Validar Entrada').item.json.ticket_id}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.UPSTASH_REDIS_REST_TOKEN}}" }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Redis GET — Buscar Memória",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 520],
+      "notes": "Upstash Redis REST API — busca histórico da conversa por ticket_id"
     },
     {
       "parameters": {
@@ -34,26 +73,19 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{$env.OPENAI_API_KEY}}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "Authorization", "value": "Bearer {{$env.OPENAI_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{$json.question}}\"\n}",
+        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{$('Validar Entrada').item.json.question}}\"\n}",
         "options": {}
       },
       "name": "Vetorizar Pergunta",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [680, 300],
-      "notes": "Converte a pergunta do atendente em vetor numérico para busca semântica"
+      "position": [900, 400]
     },
     {
       "parameters": {
@@ -63,14 +95,8 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Api-Key",
-              "value": "{{$env.PINECONE_API_KEY}}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "Api-Key", "value": "{{$env.PINECONE_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
@@ -81,17 +107,16 @@
       "name": "Buscar Tickets Similares",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [900, 300],
-      "notes": "Retorna os 5 tickets mais similares do histórico do Zendesk"
+      "position": [1120, 400]
     },
     {
       "parameters": {
-        "jsCode": "// Monta o prompt completo com contexto dos tickets similares\nconst matches = $input.item.json.matches || [];\nconst question = $('Validar Pergunta').item.json.question;\n\n// Formata os tickets similares encontrados\nlet contextoTickets = '';\nif (matches.length > 0) {\n  contextoTickets = matches.map((m, i) => {\n    const meta = m.metadata || {};\n    const score = Math.round(m.score * 100);\n    return `[Ticket ${i + 1} - Similaridade: ${score}%]\\nAssunto: ${meta.subject || 'N/A'}\\nDescrição: ${meta.description || 'N/A'}\\nStatus: ${meta.status || 'N/A'}`;\n  }).join('\\n\\n---\\n\\n');\n} else {\n  contextoTickets = 'Nenhum ticket similar encontrado na base histórica.';\n}\n\n// System prompt do Super Agente FitBank\nconst systemPrompt = `IDENTIDADE DO AGENTE\n\nVocê é o Super Agente de Atendimento do Fitbank, projetado para ajudar analistas de atendimento a resolver problemas de clientes rapidamente e com precisão.\n\nVocê atua como um copiloto do atendente, oferecendo diagnóstico e orientações claras.\nVocê NÃO atende clientes finais diretamente.\nSeu objetivo é capacitar o atendente a resolver o problema no primeiro contato.\n\nMETA OPERACIONAL: FCR ≥ 70%\n\nPERFIL DOS USUÁRIOS\nAnalistas de atendimento do Fitbank. Eles não são especialistas em tecnologia:\n- Explique de forma simples\n- Use linguagem clara\n- Forneça passos práticos\n- Evite jargões técnicos (ou explique quando usar)\n\nCATEGORIAS POSSÍVEIS: PIX | BOLETO | CARTÃO | SALDO/CONTA | TRANSFERÊNCIAS | INTEGRAÇÃO API | ONBOARDING | ANTIFRAUDE | CONCILIAÇÃO | LIMITE OPERACIONAL\n\nPLAYBOOKS:\n\nPIX NÃO RECEBIDO: 1) Confirmar débito na conta 2) Consultar status da transação 3) Verificar retorno do SPI (Banco Central) 4) Confirmar chave do destinatário 5) Validar liquidação. Escalar se houver divergência financeira.\n\nBOLETO PAGO NÃO BAIXADO: 1) Confirmar comprovante 2) Verificar data de pagamento 3) Checar retorno bancário 4) Conferir registro de pagamento 5) Validar linha digitável\n\nCARTÃO NEGADO: 1) Verificar status do cartão 2) Conferir limite disponível 3) Checar código de recusa 4) Validar bloqueio antifraude 5) Confirmar se MCC do estabelecimento é permitido\n\nSALDO INCORRETO: 1) Consultar registro interno de saldo (ledger) 2) Conferir transações recentes 3) Identificar reservas ativas 4) Verificar conciliação\n\nERRO DE API: 1) Validar endpoint 2) Conferir token de autenticação 3) Revisar payload 4) Ver logs 5) Confirmar webhook ativo\n\nGLOSSÁRIO (sempre explique esses termos):\n- Ledger = registro interno de saldo\n- SPI = infraestrutura do Banco Central para PIX\n- MCC = código que classifica tipo de estabelecimento\n- D+1 = próximo dia útil\n- KYC = verificação de identidade\n- Webhook = notificação automática para sistemas externos\n- Payload = dados enviados numa requisição de API\n\nESTRUTURA DE RESPOSTA OBRIGATÓRIA:\n📌 Entendimento do problema\n🏷 Categoria do problema\n🔎 Causa mais provável\n✅ Como resolver agora (passo a passo simples)\n📎 Informações necessárias (o que coletar do cliente)\n🚨 Quando escalar\n\nPROIBIÇÕES: Nunca invente procedimentos, nunca responda vagamente, nunca escale sem diagnóstico.\n\nAo responder, sempre pense: \"Essa resposta ajuda o atendente a resolver o problema AGORA?\"\\n`;\n\n// Prompt do usuário com contexto dos tickets\nconst userPrompt = `TICKETS HISTÓRICOS SIMILARES (Base Zendesk):\\n\\n${contextoTickets}\\n\\n---\\n\\nPERGUNTA DO ATENDENTE:\\n${question}\\n\\nResponda seguindo a estrutura obrigatória.`;\n\nreturn {\n  systemPrompt,\n  userPrompt,\n  question,\n  ticketsEncontrados: matches.length\n};"
+        "jsCode": "// ============================================================\n// MONTAR PROMPT DINÂMICO — MarIA V3\n// Injeta: categoria + memória Redis + Top 5 RAG estruturado\n// ============================================================\n\n// 1. Dados da pergunta\nconst { question, ticket_id, timestamp } = $('Validar Entrada').item.json;\n\n// 2. Categoria do classificador\nlet categoria = 'OUTROS';\nlet confiancaCategoria = 0;\ntry {\n  const classContent = $('Classificar Ticket').item.json.choices[0].message.content;\n  // Remove possível markdown (```json ... ```)\n  const cleanJson = classContent.replace(/```json?\\s*/gi, '').replace(/```/g, '').trim();\n  const parsed = JSON.parse(cleanJson);\n  categoria = parsed.categoria || 'OUTROS';\n  confiancaCategoria = parsed.confianca || 0;\n} catch (e) {\n  // Fallback silencioso — categoria permanece OUTROS\n}\n\n// 3. Memória Redis (histórico da conversa)\nlet memoriaContexto = '';\ntry {\n  const redisResult = $('Redis GET — Buscar Memória').item.json;\n  if (redisResult.result) {\n    const memoria = JSON.parse(redisResult.result);\n    const historico = (memoria.historico || []).slice(-5); // últimas 5 interações\n    if (historico.length > 0) {\n      memoriaContexto = historico.map((h, i) =>\n        `[${i + 1}] Pergunta: ${h.pergunta}\\n    Resposta resumida: ${h.resposta_resumo}`\n      ).join('\\n');\n    }\n    // Dados extraídos anteriormente (IDs, produto, etc.)\n    const dadosExtras = memoria.dados_extraidos || {};\n    if (Object.keys(dadosExtras).length > 0) {\n      memoriaContexto += `\\n\\nDados já coletados:\\n${JSON.stringify(dadosExtras, null, 2)}`;\n    }\n  }\n} catch (e) {\n  // Sem memória prévia — primeira interação\n}\n\n// 4. Top 5 tickets similares do Pinecone (RAG estruturado)\nconst matches = $('Buscar Tickets Similares').item.json.matches || [];\nlet contextoRAG = '';\nif (matches.length > 0) {\n  contextoRAG = matches.map((m, i) => {\n    const meta = m.metadata || {};\n    const score = Math.round(m.score * 100);\n    return [\n      `[Ticket ${i + 1} — Similaridade: ${score}% | Categoria: ${meta.categoria || 'N/A'}]`,\n      `Problema: ${meta.problema || 'N/A'}`,\n      meta.solucao ? `Solução aplicada: ${meta.solucao}` : '',\n      meta.tags ? `Tags: ${meta.tags}` : ''\n    ].filter(Boolean).join('\\n');\n  }).join('\\n\\n---\\n\\n');\n} else {\n  contextoRAG = 'Nenhum ticket similar encontrado na base histórica.';\n}\n\n// 5. Monta o userPrompt com todos os contextos\nconst userPrompt = [\n  `CATEGORIA DETECTADA: ${categoria} (confiança: ${confiancaCategoria}%)`,\n  '',\n  memoriaContexto\n    ? `HISTÓRICO DA CONVERSA (ticket ${ticket_id}):\\n${memoriaContexto}`\n    : `HISTÓRICO DA CONVERSA: primeira interação neste ticket`,\n  '',\n  `CASOS SEMELHANTES DO ZENDESK (RAG):\\n\\n${contextoRAG}`,\n  '',\n  `PERGUNTA DO ATENDENTE:\\n${question}`,\n  '',\n  'Responda seguindo a estrutura obrigatória do MarIA V3.'\n].join('\\n');\n\nreturn {\n  userPrompt,\n  question,\n  ticket_id,\n  categoria,\n  confiancaCategoria,\n  ticketsEncontrados: matches.length,\n  temMemoria: memoriaContexto.length > 0\n};"
       },
-      "name": "Montar Prompt",
+      "name": "Montar Prompt MarIA V3",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 300]
+      "position": [1340, 400]
     },
     {
       "parameters": {
@@ -101,51 +126,72 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{$env.OPENAI_API_KEY}}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "Authorization", "value": "Bearer {{$env.OPENAI_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": {{JSON.stringify($json.systemPrompt)}}\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{JSON.stringify($json.userPrompt)}}\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 1500\n}",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"# PROMPT — MarIA V3 (Super Agente FitBank)\\n\\n## IDENTIDADE\\nVocê é o MarIA V3, especialista sênior em operações financeiras BaaS, APIs do Fitbank, integrações técnicas e suporte N1/N2. Você NÃO é um assistente genérico — é um resolvedor de problemas operacionais em tempo real.\\n\\n## REGRA CRÍTICA\\nSEMPRE comece a resposta com:\\n## ✅ RESPOSTA DIRETA\\n\\n## ESTRUTURA OBRIGATÓRIA\\n## ✅ RESPOSTA DIRETA\\nResposta objetiva (sim/não/o que fazer)\\n\\n## 📌 O QUE ESTÁ ACONTECENDO\\nExplicação simples e conectada ao caso\\n\\n## 🔎 CAUSA MAIS PROVÁVEL\\nBaseada no histórico Zendesk e padrão Fitbank\\n\\n## ✅ O QUE FAZER AGORA (AÇÃO)\\nPassos práticos numerados\\n\\n## 📎 DADOS NECESSÁRIOS (SE FALTAR)\\nSomente se necessário\\n\\n## 🚨 QUANDO ESCALAR\\nSomente se inevitável + área correta\\n\\n## 🧠 CONTEXTO ACUMULADO (MEMÓRIA)\\nResumo do que já foi dito na conversa\\n\\n## PROIBIÇÕES\\n✖ Dizer \\\"normalmente\\\" sem posição clara\\n✖ Dizer \\\"pode ser\\\" sem priorizar\\n✖ Resposta genérica\\n✖ \\\"Verificar documentação\\\" sem indicar onde\\n✖ Ignorar contexto anterior\\n\\n## MEMÓRIA\\nVocê DEVE lembrar tudo que já foi dito. NÃO repita perguntas. Se o atendente já trouxe ID, erro ou contexto → NÃO peça novamente.\\n\\n## AUTONOMIA\\nSempre dê uma posição: \\\"Com base no padrão do Fitbank, o mais provável é…\\\"\\n\\n## TESTE INTERNO\\nAntes de finalizar: \\\"O atendente consegue agir agora com isso?\\\" Se não → reescreva.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{JSON.stringify($json.userPrompt)}}\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 1500\n}",
         "options": {}
       },
-      "name": "Chamar GPT-4o",
+      "name": "Chamar MarIA V3 (GPT-4o)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1340, 300],
-      "notes": "temperature 0.3 = respostas mais consistentes e previsíveis"
+      "position": [1560, 400],
+      "notes": "GPT-4o com temperature 0.3 — respostas consistentes e precisas"
     },
     {
       "parameters": {
-        "jsCode": "// Extrai a resposta do GPT e prepara para o frontend\nconst gptResponse = $input.item.json;\nconst resposta = gptResponse.choices[0].message.content;\nconst question = $('Montar Prompt').item.json.question;\nconst ticketsEncontrados = $('Montar Prompt').item.json.ticketsEncontrados;\n\nreturn {\n  sucesso: true,\n  resposta: resposta,\n  metadados: {\n    pergunta_original: question,\n    tickets_utilizados: ticketsEncontrados,\n    modelo: 'gpt-4o',\n    tokens_usados: gptResponse.usage?.total_tokens || 0,\n    timestamp: new Date().toISOString()\n  }\n};"
+        "jsCode": "// Extrai resposta e prepara para salvar na memória\nconst gptResponse = $input.item.json;\nconst promptData = $('Montar Prompt MarIA V3').item.json;\n\nconst resposta = gptResponse.choices[0].message.content;\n\n// Extrai um resumo da resposta para a memória (primeira seção ✅)\nconst matchResposta = resposta.match(/##\\s*✅\\s*RESPOSTA DIRETA\\s*\\n([\\s\\S]*?)(?:\\n##|$)/);\nconst resumo = matchResposta ? matchResposta[1].trim().substring(0, 200) : resposta.substring(0, 200);\n\nreturn {\n  sucesso: true,\n  resposta: resposta,\n  resumo_para_memoria: resumo,\n  metadados: {\n    pergunta_original: promptData.question,\n    ticket_id: promptData.ticket_id,\n    categoria: promptData.categoria,\n    confianca_categoria: promptData.confiancaCategoria,\n    tickets_utilizados: promptData.ticketsEncontrados,\n    tinha_memoria: promptData.temMemoria,\n    modelo: 'gpt-4o',\n    tokens_usados: gptResponse.usage?.total_tokens || 0,\n    timestamp: new Date().toISOString()\n  }\n};"
       },
       "name": "Formatar Resposta",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1560, 300]
+      "position": [1780, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta o novo estado da memória Redis para salvar\nconst respostaData = $('Formatar Resposta').item.json;\nconst { ticket_id, pergunta_original, resumo_para_memoria } = {\n  ticket_id: respostaData.metadados.ticket_id,\n  pergunta_original: respostaData.metadados.pergunta_original,\n  resumo_para_memoria: respostaData.resumo_para_memoria\n};\n\n// Busca memória existente para acumular\nlet memoriaExistente = { historico: [], dados_extraidos: {} };\ntry {\n  const redisResult = $('Redis GET — Buscar Memória').item.json;\n  if (redisResult.result) {\n    memoriaExistente = JSON.parse(redisResult.result);\n  }\n} catch (e) {}\n\n// Adiciona nova interação ao histórico\nconst novaInteracao = {\n  pergunta: pergunta_original,\n  resposta_resumo: resumo_para_memoria,\n  categoria: respostaData.metadados.categoria,\n  timestamp: respostaData.metadados.timestamp\n};\n\nmemoriaExistente.historico = [\n  ...(memoriaExistente.historico || []),\n  novaInteracao\n].slice(-10); // mantém últimas 10 interações\n\n// TTL: 24 horas (86400 segundos) — memória expira no fim do dia\nconst redisKey = `maria:ticket:${ticket_id}`;\nconst redisValue = JSON.stringify(memoriaExistente);\n\nreturn {\n  redis_key: redisKey,\n  redis_value: redisValue,\n  ticket_id\n};"
+      },
+      "name": "Preparar Memória Redis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 280],
+      "notes": "Acumula histórico da conversa — mantém últimas 10 interações, expira em 24h"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.UPSTASH_REDIS_REST_URL}}/set/{{$json.redis_key}}/EX/86400",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.UPSTASH_REDIS_REST_TOKEN}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[{{JSON.stringify($json.redis_value)}}]",
+        "options": {}
+      },
+      "name": "Redis SET — Salvar Memória",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 280],
+      "notes": "Upstash SET com EX 86400 (expira em 24h)"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{JSON.stringify($json)}}",
+        "responseBody": "={{JSON.stringify($('Formatar Resposta').item.json)}}",
         "options": {
           "responseHeaders": {
             "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              }
+              { "name": "Content-Type", "value": "application/json" },
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
             ]
           }
         }
@@ -153,108 +199,44 @@
       "name": "Retornar Resposta",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1780, 300]
+      "position": [2000, 520],
+      "notes": "Retorna resposta ao frontend enquanto Redis salva em paralelo"
     }
   ],
   "connections": {
-    "Webhook": {
-      "main": [
-        [
-          {
-            "node": "Validar Pergunta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Validar Pergunta": {
-      "main": [
-        [
-          {
-            "node": "Vetorizar Pergunta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Vetorizar Pergunta": {
-      "main": [
-        [
-          {
-            "node": "Buscar Tickets Similares",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Buscar Tickets Similares": {
-      "main": [
-        [
-          {
-            "node": "Montar Prompt",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Montar Prompt": {
-      "main": [
-        [
-          {
-            "node": "Chamar GPT-4o",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Chamar GPT-4o": {
-      "main": [
-        [
-          {
-            "node": "Formatar Resposta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Formatar Resposta": {
-      "main": [
-        [
-          {
-            "node": "Retornar Resposta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Webhook":                    { "main": [[{ "node": "Validar Entrada",              "type": "main", "index": 0 }]] },
+    "Validar Entrada":            { "main": [[
+      { "node": "Classificar Ticket",          "type": "main", "index": 0 },
+      { "node": "Redis GET — Buscar Memória",  "type": "main", "index": 0 }
+    ]] },
+    "Classificar Ticket":         { "main": [[{ "node": "Vetorizar Pergunta",          "type": "main", "index": 0 }]] },
+    "Redis GET — Buscar Memória": { "main": [[{ "node": "Vetorizar Pergunta",          "type": "main", "index": 0 }]] },
+    "Vetorizar Pergunta":         { "main": [[{ "node": "Buscar Tickets Similares",    "type": "main", "index": 0 }]] },
+    "Buscar Tickets Similares":   { "main": [[{ "node": "Montar Prompt MarIA V3",      "type": "main", "index": 0 }]] },
+    "Montar Prompt MarIA V3":     { "main": [[{ "node": "Chamar MarIA V3 (GPT-4o)",   "type": "main", "index": 0 }]] },
+    "Chamar MarIA V3 (GPT-4o)":   { "main": [[{ "node": "Formatar Resposta",          "type": "main", "index": 0 }]] },
+    "Formatar Resposta":          { "main": [[
+      { "node": "Preparar Memória Redis",      "type": "main", "index": 0 },
+      { "node": "Retornar Resposta",           "type": "main", "index": 0 }
+    ]] },
+    "Preparar Memória Redis":     { "main": [[{ "node": "Redis SET — Salvar Memória", "type": "main", "index": 0 }]] }
   },
   "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "versionId": "fitbank-agente-v1",
-  "tags": [
-    { "name": "fitbank" },
-    { "name": "agente" },
-    { "name": "atendimento" }
-  ],
+  "settings": { "executionOrder": "v1" },
+  "versionId": "fitbank-agente-v3-maria",
+  "tags": [{ "name": "fitbank" }, { "name": "maria-v3" }, { "name": "redis" }, { "name": "classificador" }],
   "_instrucoes": {
-    "variaveis_de_ambiente": {
-      "OPENAI_API_KEY": "Sua chave de API da OpenAI",
-      "PINECONE_API_KEY": "Sua chave de API do Pinecone",
-      "PINECONE_INDEX_HOST": "URL do host do índice (ex: https://xxx.svc.pinecone.io)"
-    },
-    "webhook_url": "https://seu-n8n.com/webhook/fitbank-agente",
+    "novidades_v3": [
+      "Classificador automático com GPT-4o-mini (antes do agente principal)",
+      "Memória persistente por ticket via Upstash Redis REST API",
+      "RAG estruturado: injecta problema/solução/categoria/tags dos tickets",
+      "Resposta e salvar memória rodam em paralelo (menor latência)",
+      "Memória expira em 24h automaticamente"
+    ],
+    "upstash_setup": "Crie conta em upstash.com → Create Database → copie UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN",
     "body_exemplo": {
-      "question": "O cliente fez um PIX mas o destinatário não recebeu. O saldo foi debitado normalmente."
-    },
-    "ativar_workflow": "Após importar, clique em 'Activate' no canto superior direito do n8n"
+      "question": "O cliente fez um PIX mas o destinatário não recebeu. Saldo foi debitado.",
+      "ticket_id": "ZD-98765"
+    }
   }
 }
