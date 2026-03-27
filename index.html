@@ -457,10 +457,15 @@
 
     .exemplos {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 8px;
       margin-top: 12px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
     }
+
+    .exemplos::-webkit-scrollbar { display: none; }
 
     .exemplo-btn {
       background: #eff6ff;
@@ -1353,25 +1358,32 @@
   }
 
   function atualizarExemplosModos(top10) {
-    // Update quick mode examples with top 5
+    if (!top10 || top10.length === 0) return;
+
+    // Consulta Rápida — todos os 10, usando índice para evitar problemas de escaping
     const exemploContainer = document.querySelector('.exemplos');
-    if (exemploContainer && top10.length > 0) {
-      const staticLabel = exemploContainer.querySelector('span');
-      // Keep label, replace buttons
-      const btns = top10.slice(0, 5).map(item =>
-        `<button class="exemplo-btn" onclick="preencherExemplo('${escapeHtml(item.tema)}: ${escapeHtml(item.descricao)}')">${item.icone || ''} ${escapeHtml(item.tema)}</button>`
-      ).join('');
-      exemploContainer.innerHTML = '';
-      exemploContainer.appendChild(staticLabel);
-      exemploContainer.insertAdjacentHTML('beforeend', btns);
+    if (exemploContainer) {
+      exemploContainer.innerHTML = '<span style="font-size:13px;color:#6b7280;align-self:center;white-space:nowrap;">Exemplos rápidos:</span>';
+      top10.forEach((item, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'exemplo-btn';
+        btn.textContent = (item.icone || '') + ' ' + item.tema;
+        btn.onclick = () => preencherExemplo(top10Cache[i].tema + ': ' + top10Cache[i].descricao);
+        exemploContainer.appendChild(btn);
+      });
     }
 
-    // Update chat mode examples with all 10
+    // Chat — todos os 10, usando índice
     const chatExamples = document.getElementById('chatExamples');
-    if (chatExamples && top10.length > 0) {
-      chatExamples.innerHTML = top10.map(item =>
-        `<button class="chat-example-btn" onclick="enviarExemploChat('${escapeHtml(item.tema)}: ${escapeHtml(item.descricao)}')">${item.icone || ''} ${escapeHtml(item.tema)}</button>`
-      ).join('');
+    if (chatExamples) {
+      chatExamples.innerHTML = '';
+      top10.forEach((item, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'chat-example-btn';
+        btn.textContent = (item.icone || '') + ' ' + item.tema;
+        btn.onclick = () => enviarExemploChat(top10Cache[i].tema + ': ' + top10Cache[i].descricao);
+        chatExamples.appendChild(btn);
+      });
     }
   }
 
