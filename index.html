@@ -117,6 +117,119 @@
     .mode-badge.blue { background: #eff6ff; color: #1d4ed8; }
     .mode-badge.green { background: #f0fdf4; color: #15803d; }
 
+    /* ===== TOP 10 SECTION (HOME) ===== */
+    .top10-section {
+      width: 100%;
+      max-width: 760px;
+      margin-top: 36px;
+    }
+
+    .top10-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .top10-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #374151;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .top10-badge {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+      border-radius: 12px;
+      padding: 2px 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .top10-atualizado {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .top10-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px;
+    }
+
+    .top10-btn {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.18s;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .top10-btn:hover {
+      border-color: #1a56db;
+      background: #eff6ff;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(26,86,219,0.12);
+    }
+
+    .top10-rank {
+      font-size: 11px;
+      font-weight: 700;
+      color: #9ca3af;
+      min-width: 18px;
+      padding-top: 1px;
+    }
+
+    .top10-rank.top3 { color: #f59e0b; }
+
+    .top10-icon { font-size: 18px; flex-shrink: 0; }
+
+    .top10-texto { flex: 1; }
+
+    .top10-tema {
+      font-size: 13px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 2px;
+    }
+
+    .top10-desc {
+      font-size: 11px;
+      color: #6b7280;
+      line-height: 1.4;
+    }
+
+    .top10-skeleton {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px;
+    }
+
+    .skeleton-item {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 10px 14px;
+      height: 58px;
+      animation: shimmer 1.5s infinite;
+      background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+      background-size: 200% 100%;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
     /* ===== SHARED APP HEADER ===== */
     .app-header {
       display: flex;
@@ -690,6 +803,33 @@
       <span class="mode-badge green">Conversa contínua</span>
     </div>
   </div>
+
+  <!-- TOP 10 ASSUNTOS -->
+  <div class="top10-section">
+    <div class="top10-header">
+      <div class="top10-title">
+        🔥 Top 10 Assuntos do Momento
+        <span class="top10-badge">Atualizado diariamente</span>
+      </div>
+      <span class="top10-atualizado" id="top10Atualizado"></span>
+    </div>
+    <div id="top10Container">
+      <!-- Skeleton loading -->
+      <div class="top10-skeleton" id="top10Skeleton">
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+      </div>
+      <div class="top10-grid" id="top10Grid" style="display:none;"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ===== SCREEN: CONSULTA RÁPIDA ===== -->
@@ -1139,6 +1279,95 @@
       input.focus();
     }
   }
+
+  // ============================================================
+  // TOP 10 ASSUNTOS
+  // ============================================================
+  const UPSTASH_URL   = 'https://joint-shark-67083.upstash.io';
+  const UPSTASH_TOKEN = 'gQAAAAAAAQYLAAIncDJjODljN2ZjMGE2YTc0NWJiYWI0NjUxMjBiYzBlNzFkZHAyNjcwODM';
+
+  async function carregarTop10() {
+    try {
+      const res = await fetch(`${UPSTASH_URL}/get/maria:top10`, {
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` }
+      });
+      const data = await res.json();
+      if (!data.result) return;
+
+      const parsed = JSON.parse(data.result);
+      const top10 = parsed.top10 || [];
+      const geradoEm = parsed.gerado_em ? new Date(parsed.gerado_em) : null;
+
+      // Render home grid
+      const grid = document.getElementById('top10Grid');
+      grid.innerHTML = top10.map((item, i) => {
+        const rank = i + 1;
+        const rankClass = rank <= 3 ? 'top3' : '';
+        return `<button class="top10-btn" onclick="usarTop10('${escapeHtml(item.tema)}', '${escapeHtml(item.descricao)}')">
+          <span class="top10-rank ${rankClass}">#${rank}</span>
+          <span class="top10-icon">${item.icone || '📌'}</span>
+          <div class="top10-texto">
+            <div class="top10-tema">${escapeHtml(item.tema)}</div>
+            <div class="top10-desc">${escapeHtml(item.descricao)}</div>
+          </div>
+        </button>`;
+      }).join('');
+
+      // Show grid, hide skeleton
+      document.getElementById('top10Skeleton').style.display = 'none';
+      grid.style.display = 'grid';
+
+      // Show update time
+      if (geradoEm) {
+        const hoje = new Date();
+        const diff = Math.floor((hoje - geradoEm) / 3600000);
+        const label = diff === 0 ? 'há menos de 1h'
+          : diff === 1 ? 'há 1h'
+          : diff < 24 ? `há ${diff}h`
+          : `em ${geradoEm.toLocaleDateString('pt-BR')}`;
+        document.getElementById('top10Atualizado').textContent = `Gerado ${label}`;
+      }
+
+      // Populate quick examples in both modes
+      atualizarExemplosModos(top10);
+
+    } catch (err) {
+      // Hide skeleton on error, show nothing (fallback examples remain)
+      document.getElementById('top10Skeleton').style.display = 'none';
+    }
+  }
+
+  function usarTop10(tema, descricao) {
+    // Opens quick mode with the topic pre-filled
+    entrarModo('rapida');
+    document.getElementById('perguntaR').value = `${tema}: ${descricao}`;
+  }
+
+  function atualizarExemplosModos(top10) {
+    // Update quick mode examples with top 5
+    const exemploContainer = document.querySelector('.exemplos');
+    if (exemploContainer && top10.length > 0) {
+      const staticLabel = exemploContainer.querySelector('span');
+      // Keep label, replace buttons
+      const btns = top10.slice(0, 5).map(item =>
+        `<button class="exemplo-btn" onclick="preencherExemplo('${escapeHtml(item.tema)}: ${escapeHtml(item.descricao)}')">${item.icone || ''} ${escapeHtml(item.tema)}</button>`
+      ).join('');
+      exemploContainer.innerHTML = '';
+      exemploContainer.appendChild(staticLabel);
+      exemploContainer.insertAdjacentHTML('beforeend', btns);
+    }
+
+    // Update chat mode examples with top 5
+    const chatExamples = document.getElementById('chatExamples');
+    if (chatExamples && top10.length > 0) {
+      chatExamples.innerHTML = top10.slice(0, 5).map(item =>
+        `<button class="chat-example-btn" onclick="enviarExemploChat('${escapeHtml(item.tema)}: ${escapeHtml(item.descricao)}')">${item.icone || ''} ${escapeHtml(item.tema)}</button>`
+      ).join('');
+    }
+  }
+
+  // Load top 10 on page load
+  carregarTop10();
 
   // ============================================================
   // UTILS
