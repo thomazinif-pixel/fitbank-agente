@@ -696,11 +696,16 @@
 
     .chat-examples {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 6px;
       max-width: 800px;
       margin: 0 auto 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
     }
+
+    .chat-examples::-webkit-scrollbar { display: none; }
 
     .chat-example-btn {
       background: #eff6ff;
@@ -989,6 +994,8 @@
     document.getElementById('screen-' + modo).classList.add('active');
     if (modo === 'rapida') atualizarEstadoWebhook();
     if (modo === 'chat' && !chatSessionId) iniciarSessaoChat();
+    // Re-apply top10 if already loaded (fixes timing when user enters mode before fetch completes)
+    if (top10Cache.length > 0) atualizarExemplosModos(top10Cache);
   }
 
   function voltarHome() {
@@ -1285,6 +1292,7 @@
   // ============================================================
   const UPSTASH_URL   = 'https://joint-shark-67083.upstash.io';
   const UPSTASH_TOKEN = 'gQAAAAAAAQYLAAIncDJjODljN2ZjMGE2YTc0NWJiYWI0NjUxMjBiYzBlNzFkZHAyNjcwODM';
+  let top10Cache = [];
 
   async function carregarTop10() {
     try {
@@ -1328,7 +1336,8 @@
         document.getElementById('top10Atualizado').textContent = `Gerado ${label}`;
       }
 
-      // Populate quick examples in both modes
+      // Cache and populate quick examples in both modes
+      top10Cache = top10;
       atualizarExemplosModos(top10);
 
     } catch (err) {
@@ -1357,10 +1366,10 @@
       exemploContainer.insertAdjacentHTML('beforeend', btns);
     }
 
-    // Update chat mode examples with top 5
+    // Update chat mode examples with all 10
     const chatExamples = document.getElementById('chatExamples');
     if (chatExamples && top10.length > 0) {
-      chatExamples.innerHTML = top10.slice(0, 5).map(item =>
+      chatExamples.innerHTML = top10.map(item =>
         `<button class="chat-example-btn" onclick="enviarExemploChat('${escapeHtml(item.tema)}: ${escapeHtml(item.descricao)}')">${item.icone || ''} ${escapeHtml(item.tema)}</button>`
       ).join('');
     }
