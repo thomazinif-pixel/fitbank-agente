@@ -786,12 +786,166 @@
     }
 
     .btn-nova-conversa:hover { background: #f9fafb; border-color: #d1d5db; }
+
+    /* ===== LOGIN SCREEN ===== */
+    #screen-login {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #f0f2f5;
+      padding: 24px 16px;
+    }
+
+    .login-card {
+      background: white;
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+    }
+
+    .login-logo {
+      width: 60px;
+      height: 60px;
+      background: #1a56db;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 30px;
+      font-weight: bold;
+      margin: 0 auto 20px;
+      box-shadow: 0 6px 20px rgba(26,86,219,0.30);
+    }
+
+    .login-card h2 {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+
+    .login-sub {
+      text-align: center;
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 28px;
+    }
+
+    .login-field { margin-bottom: 16px; }
+
+    .login-field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .login-field input {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      color: #111827;
+      transition: border-color 0.2s;
+    }
+
+    .login-field input:focus { border-color: #1a56db; }
+
+    .btn-login {
+      width: 100%;
+      background: #1a56db;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-login:hover:not(:disabled) { background: #1e40af; }
+    .btn-login:disabled { background: #93c5fd; cursor: not-allowed; }
+
+    .login-erro {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #b91c1c;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .home-top-bar {
+      width: 100%;
+      max-width: 760px;
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 8px;
+    }
+
+    .btn-logout {
+      background: transparent;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 5px 14px;
+      font-size: 13px;
+      color: #6b7280;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-logout:hover { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
   </style>
 </head>
 <body>
 
+<!-- ===== LOGIN SCREEN ===== -->
+<div class="screen active" id="screen-login">
+  <div class="login-card">
+    <div class="login-logo">M</div>
+    <h2>MarIA V3</h2>
+    <p class="login-sub">Acesso restrito ao time FitBank</p>
+    <div class="login-erro" id="loginErro"></div>
+    <div class="login-field">
+      <label for="loginUser">Usuário</label>
+      <input type="text" id="loginUser" placeholder="atendimento" autocomplete="username"
+             onkeydown="if(event.key==='Enter') document.getElementById('loginPass').focus()" />
+    </div>
+    <div class="login-field">
+      <label for="loginPass">Senha</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter') fazerLogin()" />
+    </div>
+    <button class="btn-login" id="btnLogin" onclick="fazerLogin()">
+      <span id="loginBtnTexto">Entrar</span>
+      <div class="spinner" id="loginSpinner"></div>
+    </button>
+  </div>
+</div>
+
 <!-- ===== HOME SCREEN ===== -->
-<div class="screen active" id="screen-home">
+<div class="screen" id="screen-home">
+  <div class="home-top-bar">
+    <button class="btn-logout" onclick="fazerLogout()">&#10148; Sair</button>
+  </div>
+
   <div class="home-header">
     <div class="home-logo">M</div>
     <h1>MarIA V3</h1>
@@ -953,6 +1107,77 @@
 </div>
 
 <script>
+  // ============================================================
+  // AUTH
+  // ============================================================
+  const AUTH_TOKEN_KEY = 'maria_auth_token';
+
+  function verificarAuth() {
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-home').classList.add('active');
+      carregarTop10();
+    }
+    // else: #screen-login already has class active by default
+  }
+
+  async function fazerLogin() {
+    const username = document.getElementById('loginUser').value.trim();
+    const password = document.getElementById('loginPass').value;
+
+    if (!username || !password) {
+      mostrarErroLogin('Preencha usuário e senha.');
+      return;
+    }
+
+    const btn = document.getElementById('btnLogin');
+    const spinner = document.getElementById('loginSpinner');
+    const btnTexto = document.getElementById('loginBtnTexto');
+    btn.disabled = true;
+    spinner.style.display = 'block';
+    btnTexto.textContent = 'Entrando...';
+    document.getElementById('loginErro').style.display = 'none';
+
+    try {
+      const res = await fetch(getWebhookURL(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', username, password })
+      });
+      const data = await res.json();
+      if (data.success && data.token) {
+        sessionStorage.setItem(AUTH_TOKEN_KEY, data.token);
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('screen-home').classList.add('active');
+        carregarTop10();
+      } else {
+        mostrarErroLogin(data.message || 'Usuário ou senha incorretos.');
+      }
+    } catch (err) {
+      mostrarErroLogin('Erro de conexão. Tente novamente.');
+    } finally {
+      btn.disabled = false;
+      spinner.style.display = 'none';
+      btnTexto.textContent = 'Entrar';
+    }
+  }
+
+  function mostrarErroLogin(msg) {
+    const el = document.getElementById('loginErro');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function fazerLogout() {
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-login').classList.add('active');
+    document.getElementById('loginUser').value = '';
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginErro').style.display = 'none';
+  }
+
   // ============================================================
   // WEBHOOK URL
   // ============================================================
@@ -1396,8 +1621,8 @@
     }
   }
 
-  // Load top 10 on page load
-  carregarTop10();
+  // Check auth on page load
+  verificarAuth();
 
   // ============================================================
   // UTILS
