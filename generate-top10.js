@@ -115,13 +115,14 @@ Ordene do tema mais frequente para o menos frequente. Use ícones relevantes par
 
   console.log('\n  💾 Salvando no Redis...');
 
-  const redisRes = await fetch(`${UPSTASH_URL}/set/maria:top10`, {
+  // Upstash REST: SET with EX uses command array at root endpoint
+  const redisRes = await fetch(`${UPSTASH_URL}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${UPSTASH_TOKEN}`
     },
-    body: JSON.stringify([JSON.stringify(resultado), 'EX', '90000']) // TTL 25h
+    body: JSON.stringify(['SET', 'maria:top10', JSON.stringify(resultado), 'EX', 90000])
   });
 
   const redisData = await redisRes.json();

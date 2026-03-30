@@ -1307,24 +1307,32 @@
       const data = await res.json();
       if (!data.result) return;
 
-      const parsed = JSON.parse(data.result);
+      // Handle both storage formats: plain JSON string or legacy array [value, "EX", ttl]
+      let raw = data.result;
+      if (typeof raw === 'string' && raw.trimStart().startsWith('[')) {
+        raw = JSON.parse(raw)[0];
+      }
+      const parsed = JSON.parse(raw);
       const top10 = parsed.top10 || [];
       const geradoEm = parsed.gerado_em ? new Date(parsed.gerado_em) : null;
 
-      // Render home grid
+      // Render home grid using createElement to avoid apostrophe issues
       const grid = document.getElementById('top10Grid');
-      grid.innerHTML = top10.map((item, i) => {
+      grid.innerHTML = '';
+      top10.forEach((item, i) => {
         const rank = i + 1;
-        const rankClass = rank <= 3 ? 'top3' : '';
-        return `<button class="top10-btn" onclick="usarTop10('${escapeHtml(item.tema)}', '${escapeHtml(item.descricao)}')">
-          <span class="top10-rank ${rankClass}">#${rank}</span>
+        const btn = document.createElement('button');
+        btn.className = 'top10-btn';
+        btn.innerHTML = `
+          <span class="top10-rank ${rank <= 3 ? 'top3' : ''}">#${rank}</span>
           <span class="top10-icon">${item.icone || '📌'}</span>
           <div class="top10-texto">
             <div class="top10-tema">${escapeHtml(item.tema)}</div>
             <div class="top10-desc">${escapeHtml(item.descricao)}</div>
-          </div>
-        </button>`;
-      }).join('');
+          </div>`;
+        btn.onclick = () => usarTop10Index(i);
+        grid.appendChild(btn);
+      });
 
       // Show grid, hide skeleton
       document.getElementById('top10Skeleton').style.display = 'none';
@@ -1351,10 +1359,11 @@
     }
   }
 
-  function usarTop10(tema, descricao) {
-    // Opens quick mode with the topic pre-filled
+  function usarTop10Index(i) {
+    const item = top10Cache[i];
+    if (!item) return;
     entrarModo('rapida');
-    document.getElementById('perguntaR').value = `${tema}: ${descricao}`;
+    document.getElementById('perguntaR').value = item.tema + ': ' + item.descricao;
   }
 
   function atualizarExemplosModos(top10) {
