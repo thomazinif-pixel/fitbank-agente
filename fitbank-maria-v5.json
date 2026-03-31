@@ -1,0 +1,252 @@
+{
+  "name": "FitBank — MarIA V5 (DevOps + Diagnóstico + Causa Raiz)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fitbank-v5",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "name": "Webhook V5",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{$json.body.action}}", "value2": "login" }]
+        }
+      },
+      "name": "Verificar Login V5",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nconst { username, password } = body;\nconst VALID_USER = 'atendimento';\nconst VALID_PASS = '@Bank#Fit';\nif (username === VALID_USER && password === VALID_PASS) {\n  const token = Buffer.from(`${username}:${Date.now()}:fitbank-maria-secret`).toString('base64');\n  return { success: true, token, version: 'V5' };\n}\nreturn { success: false, error: 'Credenciais inválidas' };"
+      },
+      "name": "Validar Credenciais V5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{JSON.stringify($json)}}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "application/json" },
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
+            ]
+          }
+        }
+      },
+      "name": "Retornar Auth V5",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || $input.item.json;\nconst question = (body.question || body.pergunta || '').trim();\nif (!question) throw new Error('Campo \"question\" é obrigatório.');\nconst ticket_id = String(body.ticket_id || `v5-session-${Date.now()}`);\nreturn { question, ticket_id, timestamp: new Date().toISOString() };"
+      },
+      "name": "Validar Entrada V5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 520]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.OPENAI_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Classifique o ticket FitBank em UMA categoria. Responda APENAS JSON válido sem markdown.\\n\\nCategorias: PIX | BOLETO | CARTÃO | API | SALDO | ANTIFRAUDE | CONCILIAÇÃO | ONBOARDING | WEBHOOK | OUTROS\\n\\nFormato obrigatório:\\n{\\\"categoria\\\": \\\"PIX\\\", \\\"confianca\\\": 95}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Ticket: {{$json.question}}\"\n    }\n  ],\n  \"temperature\": 0,\n  \"max_tokens\": 60\n}",
+        "options": {}
+      },
+      "name": "Classificar Ticket V5",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 420]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.UPSTASH_REDIS_REST_URL}}/get/maria-v5:ticket:{{$('Validar Entrada V5').item.json.ticket_id}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.UPSTASH_REDIS_REST_TOKEN}}" }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Redis GET V5",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 620]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.OPENAI_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{$('Validar Entrada V5').item.json.question}}\",\n  \"dimensions\": 1024\n}",
+        "options": {}
+      },
+      "name": "Vetorizar Pergunta V5",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// BUSCA DUAL PINECONE: devops-tickets (N2) + zendesk-tickets\n// DevOps tem prioridade — causa raiz real\n// ============================================================\nconst embedding = $('Vetorizar Pergunta V5').item.json.data[0].embedding;\nconst PINECONE_HOST = $env.PINECONE_INDEX_HOST;\nconst PINECONE_KEY  = $env.PINECONE_API_KEY;\n\nasync function queryNamespace(namespace, topK) {\n  try {\n    const res = await fetch(`${PINECONE_HOST}/query`, {\n      method: 'POST',\n      headers: { 'Api-Key': PINECONE_KEY, 'Content-Type': 'application/json' },\n      body: JSON.stringify({ vector: embedding, topK, includeMetadata: true, namespace })\n    });\n    if (!res.ok) return [];\n    const data = await res.json();\n    return data.matches || [];\n  } catch {\n    return [];\n  }\n}\n\n// Paralelo: DevOps topK=5, Zendesk topK=10\nconst [devopsMatches, zendeskMatches] = await Promise.all([\n  queryNamespace('devops-tickets', 5),\n  queryNamespace('zendesk-tickets', 10)\n]);\n\nreturn {\n  devops_matches:  devopsMatches,\n  zendesk_matches: zendeskMatches,\n  devops_count:    devopsMatches.length,\n  zendesk_count:   zendeskMatches.length,\n  tem_devops:      devopsMatches.length > 0 && devopsMatches[0].score > 0.75\n};"
+      },
+      "name": "Buscar Conhecimento V5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// MONTAR PROMPT V5 — Diagnóstico + Causa Raiz + DevOps Priority\n// ============================================================\nconst { question, ticket_id } = $('Validar Entrada V5').item.json;\n\n// 1. Categoria\nlet categoria = 'OUTROS', confiancaCategoria = 0;\ntry {\n  const content = $('Classificar Ticket V5').item.json.choices[0].message.content;\n  const clean = content.replace(/```json?\\s*/gi, '').replace(/```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  categoria = parsed.categoria || 'OUTROS';\n  confiancaCategoria = parsed.confianca || 0;\n} catch {}\n\n// 2. Memória Redis V5\nlet memoriaContexto = '';\ntry {\n  const redisResult = $('Redis GET V5').item.json;\n  if (redisResult.result) {\n    const memoria = JSON.parse(redisResult.result);\n    const historico = (memoria.historico || []).slice(-6);\n    if (historico.length > 0) {\n      memoriaContexto = historico.map((h, i) =>\n        `[${i + 1}] Atendente: ${h.pergunta}\\n    MarIA V5: ${h.resposta_resumo}\\n    Diagnóstico: ${h.diagnostico || 'N/A'}`\n      ).join('\\n');\n      const dados = memoria.dados_extraidos || {};\n      if (Object.keys(dados).length > 0) {\n        memoriaContexto += `\\n\\nDados coletados nesta sessão:\\n${JSON.stringify(dados, null, 2)}`;\n      }\n    }\n  }\n} catch {}\n\n// 3. Casos DevOps N2 (prioridade máxima)\nconst conhecimento = $('Buscar Conhecimento V5').item.json;\nconst devopsMatches = conhecimento.devops_matches || [];\nconst zendeskMatches = conhecimento.zendesk_matches || [];\nconst temDevopsForte = conhecimento.tem_devops;\n\nlet contextoDevOps = '';\nif (devopsMatches.length > 0) {\n  contextoDevOps = devopsMatches.map((m, i) => {\n    const meta = m.metadata || {};\n    const score = Math.round(m.score * 100);\n    return [\n      `[DevOps N2 — Item ${i + 1} | Similaridade: ${score}% | ID: ${meta.workitem_id || 'N/A'}]`,\n      `Título: ${meta.titulo || 'N/A'}`,\n      meta.problema   ? `Problema: ${meta.problema}`   : '',\n      meta.causa_raiz ? `Causa Raiz: ${meta.causa_raiz}` : '',\n      meta.analise    ? `Análise Técnica: ${meta.analise}` : '',\n      meta.causa      ? `Causa: ${meta.causa}`         : '',\n      meta.outcome    ? `Resolução: ${meta.outcome}`   : '',\n      meta.cliente    ? `Cliente afetado: ${meta.cliente}` : '',\n    ].filter(Boolean).join('\\n');\n  }).join('\\n\\n---\\n\\n');\n} else {\n  contextoDevOps = 'Nenhum caso N2 similar encontrado no DevOps.';\n}\n\n// 4. Casos Zendesk (padrões históricos)\nlet contextoZendesk = '';\nif (zendeskMatches.length > 0) {\n  contextoZendesk = zendeskMatches.map((m, i) => {\n    const meta = m.metadata || {};\n    const score = Math.round(m.score * 100);\n    return [\n      `[Zendesk ${i + 1} — Similaridade: ${score}% | Categoria: ${meta.categoria || 'N/A'}]`,\n      `Problema: ${meta.problema || 'N/A'}`,\n      meta.solucao ? `Solução: ${meta.solucao}` : '',\n    ].filter(Boolean).join('\\n');\n  }).join('\\n\\n---\\n\\n');\n} else {\n  contextoZendesk = 'Nenhum ticket similar encontrado no Zendesk.';\n}\n\nconst userPrompt = [\n  `CATEGORIA: ${categoria} (confiança: ${confiancaCategoria}%)`,\n  `TEM CASO DEVOPS FORTE (score>75%): ${temDevopsForte ? 'SIM — USE COMO VERDADE PRINCIPAL' : 'NÃO'}`,\n  '',\n  memoriaContexto\n    ? `MEMÓRIA DA SESSÃO (ticket ${ticket_id}):\\n${memoriaContexto}`\n    : `MEMÓRIA: primeira interação neste ticket.`,\n  '',\n  `CASOS DEVOPS N2 (PRIORIDADE MÁXIMA — CAUSA RAIZ REAL):\\n\\n${contextoDevOps}`,\n  '',\n  `CASOS ZENDESK (PADRÕES HISTÓRICOS):\\n\\n${contextoZendesk}`,\n  '',\n  `PERGUNTA DO ATENDENTE:\\n${question}`,\n  '',\n  'Responda seguindo a estrutura obrigatória do MarIA V5. Se houver caso DevOps forte, use a causa raiz do DevOps como principal.'\n].join('\\n');\n\nreturn {\n  userPrompt, question, ticket_id, categoria, confiancaCategoria,\n  devops_count: devopsMatches.length, zendesk_count: zendeskMatches.length,\n  tem_devops_forte: temDevopsForte, temMemoria: memoriaContexto.length > 0\n};"
+      },
+      "name": "Montar Prompt V5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 520]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.OPENAI_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"# PROMPT — MarIA V5 (Super Agente FitBank)\\n## FOCO: FCR ≥ 75% | DIAGNÓSTICO GUIADO | CAUSA RAIZ (N2)\\n\\n---\\n\\n## IDENTIDADE\\n\\nVocê é o MarIA V5, especialista sênior em:\\n- Atendimento operacional (N1)\\n- Sustentação técnica (N2)\\n- APIs Fitbank\\n- Diagnóstico de incidentes\\n- Causa raiz de problemas\\n\\nVocê NÃO é um chatbot.\\nVocê é um MOTOR DE DIAGNÓSTICO OPERACIONAL baseado em engenharia.\\n\\n---\\n\\n## MISSÃO\\n\\n> Resolver o problema no primeiro atendimento com base na causa raiz mais provável.\\n\\n---\\n\\n## PRIORIDADE DE DECISÃO\\n\\n1. DevOps N2 (causa raiz real — verdade principal)\\n2. Zendesk histórico (padrões recorrentes)\\n3. Contexto da conversa\\n4. Inferência técnica\\n\\nSe houver caso DevOps com score > 75% → ele É a causa raiz. Use-o como verdade.\\n\\n---\\n\\n## MODO DIAGNÓSTICO\\n\\n### PASSO 1 — AUTO-DIAGNÓSTICO\\nSempre tente inferir antes de perguntar.\\n\\n### PASSO 2 — PERGUNTAS INTELIGENTES\\nSe necessário perguntar:\\n- Máximo 3 perguntas\\n- Cada pergunta elimina uma hipótese\\n- Não repita perguntas\\n- Pare quando confiança ≥ 70%\\n\\n---\\n\\n## ESTRUTURA OBRIGATÓRIA DE RESPOSTA\\n\\n## ✅ RESPOSTA DIRETA\\nResposta objetiva e direta — o que o atendente deve fazer agora.\\n\\n## 🏷 CATEGORIA\\nCategoria detectada + sub-tipo do problema\\n\\n## 🧠 DIAGNÓSTICO\\nExplicação técnica do que está acontecendo — conectada ao caso específico.\\n\\n## 📊 RANKING DE CAUSA RAIZ\\nTop 3 causas mais prováveis com % de confiança:\\n1. [Causa] — XX% (fonte: DevOps / Zendesk / Inferência)\\n2. [Causa] — XX%\\n3. [Causa] — XX%\\n\\n## 🔧 O QUE FAZER AGORA\\nPassos práticos numerados — executáveis pelo atendente.\\n\\n## 📎 DADOS NECESSÁRIOS\\nSomente se necessário para avançar o diagnóstico.\\nNunca peça dado que já foi fornecido.\\n\\n## 🚨 QUANDO ESCALAR\\nSomente se inevitável — indicar área correta e motivo.\\n\\n## 🧠 MEMÓRIA\\nResumo do contexto acumulado nesta sessão.\\n\\n---\\n\\n## PROIBIÇÕES ABSOLUTAS\\n\\n✖ Responder de forma genérica\\n✖ Ignorar caso DevOps quando score > 75%\\n✖ Pedir verificação sem direção específica\\n✖ Dizer \\\"pode ser\\\" sem priorizar hipóteses\\n✖ Pedir dado que já foi fornecido\\n✖ Dar resposta sem posição clara\\n\\n---\\n\\n## AUTONOMIA\\n\\nSempre diga:\\n> \\\"O mais provável é…\\\"\\n\\nNunca deixe o atendente sem uma direção de ação.\\n\\n---\\n\\n## PLAYBOOKS RÁPIDOS\\n\\n### PIX NÃO CHEGOU\\n1. Saldo debitado? Sim → status SPI? / Não → transação não enviada\\n2. Status: Liquidado → destinatário deve receber | Devolvido → motivo + chave\\n3. Liquidado > 4h sem recebimento → escalar financeiro\\n\\n### BOLETO NÃO BAIXOU\\n1. Pagamento confirmado pelo banco?\\n2. Retorno bancário recebido? D+1 passou?\\n3. Se sim e não baixou → acionar conciliação\\n\\n### ERRO DE API\\n1. Endpoint + versão corretos?\\n2. Token válido e não expirado?\\n3. Payload com campos obrigatórios?\\n4. Log de erro disponível?\\n\\n### SALDO INCORRETO\\n1. Consultar ledger → transações recentes registradas?\\n2. Reservas ativas? Conciliação do dia processada?\\n\\n---\\n\\n## TESTE INTERNO\\n\\nAntes de finalizar cada resposta:\\n> \\\"O atendente consegue agir agora com isso?\\\"\\n\\nSe não → reescreva.\\n\\n---\\n\\n## MÉTRICA\\n\\nFCR ≥ 75% — Problema resolvido no primeiro atendimento.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{JSON.stringify($json.userPrompt)}}\n    }\n  ],\n  \"temperature\": 0.2,\n  \"max_tokens\": 2000\n}",
+        "options": {}
+      },
+      "name": "Chamar MarIA V5 (GPT-4o)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1780, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const gptResponse = $input.item.json;\nconst promptData = $('Montar Prompt V5').item.json;\nconst resposta = gptResponse.choices[0].message.content;\n\n// Extrai resumo da seção ✅ RESPOSTA DIRETA para memória\nconst matchDireto = resposta.match(/##\\s*✅\\s*RESPOSTA DIRETA\\s*\\n([\\s\\S]*?)(?:\\n##|$)/);\nconst resumo = matchDireto ? matchDireto[1].trim().substring(0, 250) : resposta.substring(0, 250);\n\n// Extrai diagnóstico para memória\nconst matchDiag = resposta.match(/##\\s*🧠\\s*DIAGNÓSTICO\\s*\\n([\\s\\S]*?)(?:\\n##|$)/);\nconst diagnostico = matchDiag ? matchDiag[1].trim().substring(0, 150) : '';\n\nreturn {\n  sucesso: true,\n  resposta,\n  resumo_para_memoria: resumo,\n  diagnostico_para_memoria: diagnostico,\n  metadados: {\n    pergunta_original: promptData.question,\n    ticket_id: promptData.ticket_id,\n    categoria: promptData.categoria,\n    confianca_categoria: promptData.confiancaCategoria,\n    devops_utilizados: promptData.devops_count,\n    zendesk_utilizados: promptData.zendesk_count,\n    tinha_devops_forte: promptData.tem_devops_forte,\n    tinha_memoria: promptData.temMemoria,\n    modelo: 'gpt-4o',\n    versao: 'V5',\n    tokens_usados: gptResponse.usage?.total_tokens || 0,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Formatar Resposta V5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const respostaData = $('Formatar Resposta V5').item.json;\nconst { ticket_id, pergunta_original, categoria } = {\n  ticket_id: respostaData.metadados.ticket_id,\n  pergunta_original: respostaData.metadados.pergunta_original,\n  categoria: respostaData.metadados.categoria\n};\n\nlet memoriaExistente = { historico: [], dados_extraidos: {} };\ntry {\n  const redisResult = $('Redis GET V5').item.json;\n  if (redisResult.result) memoriaExistente = JSON.parse(redisResult.result);\n} catch {}\n\nconst novaInteracao = {\n  pergunta: pergunta_original,\n  resposta_resumo: respostaData.resumo_para_memoria,\n  diagnostico: respostaData.diagnostico_para_memoria,\n  categoria,\n  timestamp: respostaData.metadados.timestamp\n};\n\nmemoriaExistente.historico = [\n  ...(memoriaExistente.historico || []),\n  novaInteracao\n].slice(-10);\n\nconst redisKey = `maria-v5:ticket:${ticket_id}`;\nreturn {\n  redis_key: redisKey,\n  redis_value: JSON.stringify(memoriaExistente),\n  ticket_id\n};"
+      },
+      "name": "Preparar Memória V5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 380]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.UPSTASH_REDIS_REST_URL}}/set/{{$json.redis_key}}/EX/86400",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.UPSTASH_REDIS_REST_TOKEN}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[{{JSON.stringify($json.redis_value)}}]",
+        "options": {}
+      },
+      "name": "Redis SET V5",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2440, 380]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{JSON.stringify($('Formatar Resposta V5').item.json)}}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "application/json" },
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
+            ]
+          }
+        }
+      },
+      "name": "Retornar Resposta V5",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2220, 660]
+    }
+  ],
+  "connections": {
+    "Webhook V5":             { "main": [[{ "node": "Verificar Login V5",    "type": "main", "index": 0 }]] },
+    "Verificar Login V5":     {
+      "main": [
+        [{ "node": "Validar Credenciais V5", "type": "main", "index": 0 }],
+        [{ "node": "Validar Entrada V5",     "type": "main", "index": 0 }]
+      ]
+    },
+    "Validar Credenciais V5": { "main": [[{ "node": "Retornar Auth V5",      "type": "main", "index": 0 }]] },
+    "Validar Entrada V5":     { "main": [[
+      { "node": "Classificar Ticket V5", "type": "main", "index": 0 },
+      { "node": "Redis GET V5",          "type": "main", "index": 0 }
+    ]] },
+    "Classificar Ticket V5":  { "main": [[{ "node": "Vetorizar Pergunta V5", "type": "main", "index": 0 }]] },
+    "Redis GET V5":           { "main": [[{ "node": "Vetorizar Pergunta V5", "type": "main", "index": 0 }]] },
+    "Vetorizar Pergunta V5":  { "main": [[{ "node": "Buscar Conhecimento V5","type": "main", "index": 0 }]] },
+    "Buscar Conhecimento V5": { "main": [[{ "node": "Montar Prompt V5",      "type": "main", "index": 0 }]] },
+    "Montar Prompt V5":       { "main": [[{ "node": "Chamar MarIA V5 (GPT-4o)","type": "main", "index": 0 }]] },
+    "Chamar MarIA V5 (GPT-4o)": { "main": [[{ "node": "Formatar Resposta V5","type": "main", "index": 0 }]] },
+    "Formatar Resposta V5":   { "main": [[
+      { "node": "Preparar Memória V5", "type": "main", "index": 0 },
+      { "node": "Retornar Resposta V5","type": "main", "index": 0 }
+    ]] },
+    "Preparar Memória V5":    { "main": [[{ "node": "Redis SET V5",          "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "fitbank" }, { "name": "maria-v5" }, { "name": "devops" }, { "name": "diagnostico" }]
+}

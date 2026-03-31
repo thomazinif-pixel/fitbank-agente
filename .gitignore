@@ -11,3 +11,5 @@ npm-debug.log*
 # Sistema
 .DS_Store
 Thumbs.db
+fitbank-maria-v5-fixed.json
+*-fixed.json
