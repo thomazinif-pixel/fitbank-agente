@@ -632,6 +632,18 @@
       word-break: break-word;
     }
 
+    .msg-content {
+      max-width: 75%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      min-width: 0;
+    }
+
+    .msg-content .msg-bubble {
+      max-width: 100%;
+    }
+
     .msg-row.user .msg-bubble {
       background: #1a56db;
       color: white;
@@ -1367,7 +1379,7 @@
     const row = document.createElement('div');
     row.className = 'msg-row user';
     row.innerHTML =
-      '<div>' +
+      '<div class="msg-content">' +
         '<div class="msg-bubble">' + escapeHtml(texto) + '</div>' +
         '<div class="msg-time">' + horaAtual() + '</div>' +
       '</div>' +
