@@ -418,6 +418,82 @@
 
     .filter-select:focus { border-color: #1a56db; }
 
+    /* ===== DATE FILTER BAR ===== */
+    .date-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 10px 24px;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .date-filter-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      margin-right: 4px;
+    }
+
+    .date-preset-btn {
+      background: transparent;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .date-preset-btn:hover { border-color: #1a56db; color: #1a56db; }
+    .date-preset-btn.active { background: #1a56db; border-color: #1a56db; color: white; font-weight: 600; }
+
+    .date-custom-wrap {
+      display: none;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .date-custom-wrap.visible { display: flex; }
+
+    .date-custom-wrap input[type="date"] {
+      border: 1.5px solid #d1d5db;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #374151;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .date-custom-wrap input[type="date"]:focus { border-color: #1a56db; }
+
+    .date-custom-sep { font-size: 12px; color: #9ca3af; }
+
+    .btn-apply-date {
+      background: #1a56db;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-apply-date:hover { background: #1e40af; }
+
+    .date-active-label {
+      margin-left: auto;
+      font-size: 12px;
+      color: #6b7280;
+    }
+
     .data-table {
       width: 100%;
       border-collapse: collapse;
@@ -675,6 +751,24 @@
     <button class="alert-banner-dismiss" onclick="dismissBanner()">✕</button>
   </div>
 
+  <!-- DATE FILTER BAR -->
+  <div class="date-filter-bar" id="date-filter-bar" style="display:none;">
+    <span class="date-filter-label">Período:</span>
+    <button class="date-preset-btn" id="dp-hoje"  onclick="setDatePreset('hoje')">Hoje</button>
+    <button class="date-preset-btn" id="dp-7d"    onclick="setDatePreset('7d')">7 dias</button>
+    <button class="date-preset-btn" id="dp-30d"   onclick="setDatePreset('30d')">30 dias</button>
+    <button class="date-preset-btn" id="dp-90d"   onclick="setDatePreset('90d')">90 dias</button>
+    <button class="date-preset-btn active" id="dp-todos" onclick="setDatePreset('todos')">Todos</button>
+    <button class="date-preset-btn" id="dp-custom" onclick="setDatePreset('custom')">Personalizado</button>
+    <div class="date-custom-wrap" id="date-custom-wrap">
+      <input type="date" id="date-start" onchange="applyCustomDate()" />
+      <span class="date-custom-sep">até</span>
+      <input type="date" id="date-end" onchange="applyCustomDate()" />
+      <button class="btn-apply-date" onclick="applyCustomDate()">Filtrar</button>
+    </div>
+    <span class="date-active-label" id="date-active-label"></span>
+  </div>
+
   <!-- MAIN -->
   <div class="analytics-main">
     <div class="last-update" id="last-update-label"></div>
@@ -830,10 +924,46 @@ let dismissedAlertTypes = new Set();
 let charts = {};
 let bannerDismissed = false;
 let currentVersion = 'todas';
+let datePreset = 'todos';
+let customStart = '';
+let customEnd = '';
 
 function getFilteredData() {
-  if (currentVersion === 'todas') return evalsData;
-  return evalsData.filter(e => (e.versao || '').toLowerCase() === currentVersion);
+  // Filter by version
+  let d = currentVersion === 'todas'
+    ? evalsData
+    : evalsData.filter(e => (e.versao || '').toLowerCase() === currentVersion);
+
+  // Filter by date
+  if (datePreset === 'todos') return d;
+
+  let start, end;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (datePreset === 'hoje') {
+    start = today.toISOString().slice(0, 10);
+    end = start;
+  } else if (datePreset === '7d') {
+    const s = new Date(today); s.setDate(s.getDate() - 6);
+    start = s.toISOString().slice(0, 10);
+    end = today.toISOString().slice(0, 10);
+  } else if (datePreset === '30d') {
+    const s = new Date(today); s.setDate(s.getDate() - 29);
+    start = s.toISOString().slice(0, 10);
+    end = today.toISOString().slice(0, 10);
+  } else if (datePreset === '90d') {
+    const s = new Date(today); s.setDate(s.getDate() - 89);
+    start = s.toISOString().slice(0, 10);
+    end = today.toISOString().slice(0, 10);
+  } else if (datePreset === 'custom') {
+    start = customStart;
+    end = customEnd;
+  }
+
+  if (start) d = d.filter(e => (e.timestamp || '').slice(0, 10) >= start);
+  if (end)   d = d.filter(e => (e.timestamp || '').slice(0, 10) <= end);
+  return d;
 }
 
 function setVersion(v) {
@@ -844,6 +974,46 @@ function setVersion(v) {
   alertasGerados = computarAlertas(getFilteredData());
   if (!bannerDismissed) updateAlertBanner();
   renderAll();
+}
+
+function setDatePreset(preset) {
+  datePreset = preset;
+  ['hoje','7d','30d','90d','todos','custom'].forEach(p => {
+    document.getElementById('dp-' + p).classList.toggle('active', p === preset);
+  });
+  const customWrap = document.getElementById('date-custom-wrap');
+  customWrap.classList.toggle('visible', preset === 'custom');
+
+  if (preset !== 'custom') {
+    updateDateActiveLabel();
+    alertasGerados = computarAlertas(getFilteredData());
+    if (!bannerDismissed) updateAlertBanner();
+    renderAll();
+  }
+}
+
+function applyCustomDate() {
+  customStart = document.getElementById('date-start').value;
+  customEnd   = document.getElementById('date-end').value;
+  if (!customStart && !customEnd) return;
+  updateDateActiveLabel();
+  alertasGerados = computarAlertas(getFilteredData());
+  if (!bannerDismissed) updateAlertBanner();
+  renderAll();
+}
+
+function updateDateActiveLabel() {
+  const el = document.getElementById('date-active-label');
+  if (!el) return;
+  const d = getFilteredData();
+  const labels = { hoje: 'Hoje', '7d': 'Últimos 7 dias', '30d': 'Últimos 30 dias', '90d': 'Últimos 90 dias', todos: 'Todo o período' };
+  if (datePreset === 'custom') {
+    const s = customStart || '?';
+    const e = customEnd || '?';
+    el.textContent = `${s} → ${e} — ${d.length} registro(s)`;
+  } else {
+    el.textContent = `${labels[datePreset] || ''} — ${d.length} registro(s)`;
+  }
 }
 
 // ============================================================
@@ -944,6 +1114,7 @@ function doLogout() {
 function goToAnalytics() {
   document.getElementById('screen-login').classList.remove('active');
   document.getElementById('screen-analytics').classList.add('active');
+  document.getElementById('date-filter-bar').style.display = 'flex';
   loadData();
 }
 
@@ -962,8 +1133,8 @@ async function loadData() {
   try {
     const headers = { 'Authorization': `Bearer ${UPSTASH_TOKEN}` };
     const [respV3, respV5] = await Promise.all([
-      fetch(`${UPSTASH_URL}/lrange/maria-v3:analytics:evals/0/499`, { headers }),
-      fetch(`${UPSTASH_URL}/lrange/maria-v5:analytics:evals/0/499`, { headers })
+      fetch(`${UPSTASH_URL}/lrange/maria-v3:analytics:evals/0/-1`, { headers }),
+      fetch(`${UPSTASH_URL}/lrange/maria-v5:analytics:evals/0/-1`, { headers })
     ]);
     const [jsonV3, jsonV5] = await Promise.all([respV3.json(), respV5.json()]);
     const rawAll = [...(jsonV3.result || []), ...(jsonV5.result || [])];
@@ -990,6 +1161,7 @@ async function loadData() {
     const v5count = evalsData.filter(e => e.versao === 'V5').length;
     document.getElementById('last-update-label').textContent =
       `Última atualização: ${new Date().toLocaleString('pt-BR')} — V3: ${v3count} | V5: ${v5count} avaliações`;
+    updateDateActiveLabel();
 
   } catch (e) {
     console.error('Erro ao carregar dados:', e);
