@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MarIA V5 — Analytics FitBank</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+
+    /* ===== SCREENS ===== */
+    .screen { display: none; }
+    .screen.active { display: flex; }
+
+    /* ===== LOGIN SCREEN ===== */
+    #screen-login {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    .login-box {
+      background: white;
+      border-radius: 20px;
+      padding: 44px 40px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+    }
+
+    .login-logo {
+      width: 60px;
+      height: 60px;
+      background: #1a56db;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 28px;
+      font-weight: bold;
+      margin: 0 auto 20px;
+      box-shadow: 0 6px 20px rgba(26,86,219,0.3);
+    }
+
+    .login-title {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+
+    .login-sub {
+      text-align: center;
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 32px;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .field-input {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      color: #111827;
+      transition: border-color 0.2s;
+      margin-bottom: 18px;
+    }
+
+    .field-input:focus { border-color: #1a56db; }
+
+    .btn-login {
+      width: 100%;
+      background: #1a56db;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 13px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-login:hover:not(:disabled) { background: #1e40af; }
+    .btn-login:disabled { background: #93c5fd; cursor: not-allowed; }
+
+    .login-error {
+      color: #dc2626;
+      font-size: 13px;
+      text-align: center;
+      margin-top: 14px;
+      display: none;
+    }
+
+    /* ===== ANALYTICS SCREEN ===== */
+    #screen-analytics {
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ===== HEADER ===== */
+    .analytics-header {
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 0;
+      flex-shrink: 0;
+    }
+
+    .header-logo {
+      width: 36px;
+      height: 36px;
+      background: #1a56db;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .header-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .header-subtitle {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .header-tabs {
+      display: flex;
+      gap: 2px;
+      flex: 1;
+      margin-left: 24px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      padding: 16px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #6b7280;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover { color: #1a56db; }
+    .tab-btn.active { color: #1a56db; border-bottom-color: #1a56db; }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .btn-refresh {
+      background: #f3f4f6;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-refresh:hover { background: #e5e7eb; }
+
+    .btn-logout {
+      background: transparent;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #6b7280;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-logout:hover { border-color: #dc2626; color: #dc2626; }
+
+    /* ===== ALERT BANNER ===== */
+    .alert-banner {
+      background: #fef2f2;
+      border-bottom: 2px solid #fca5a5;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .alert-banner.hidden { display: none; }
+
+    .alert-banner-icon { font-size: 18px; }
+
+    .alert-banner-msg {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 600;
+      color: #991b1b;
+    }
+
+    .alert-banner-dismiss {
+      background: transparent;
+      border: none;
+      color: #9ca3af;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 2px 6px;
+      line-height: 1;
+    }
+
+    .alert-banner-dismiss:hover { color: #6b7280; }
+
+    /* ===== MAIN CONTENT ===== */
+    .analytics-main {
+      flex: 1;
+      padding: 24px;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ===== TAB PANELS ===== */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ===== KPI CARDS ===== */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+    .kpi-card {
+      background: white;
+      border-radius: 14px;
+      padding: 20px 22px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      border-left: 4px solid #1a56db;
+    }
+
+    .kpi-card.green { border-left-color: #10b981; }
+    .kpi-card.yellow { border-left-color: #f59e0b; }
+    .kpi-card.red { border-left-color: #ef4444; }
+
+    .kpi-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font-size: 32px;
+      font-weight: 800;
+      color: #111827;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .kpi-sub {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    /* ===== CHART GRID ===== */
+    .chart-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 768px) { .chart-grid-2 { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: white;
+      border-radius: 14px;
+      padding: 20px 22px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+
+    .chart-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 240px;
+    }
+
+    .chart-container.tall {
+      height: 280px;
+    }
+
+    /* ===== TABLE ===== */
+    .table-card {
+      background: white;
+      border-radius: 14px;
+      padding: 20px 22px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      margin-bottom: 24px;
+    }
+
+    .table-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .table-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #374151;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .filter-select {
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #374151;
+      background: white;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .filter-select:focus { border-color: #1a56db; }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      border-bottom: 2px solid #f3f4f6;
+      background: #fafafa;
+    }
+
+    .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f3f4f6;
+      color: #374151;
+      vertical-align: top;
+    }
+
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: #f9fafb; }
+
+    /* ===== BADGES ===== */
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge-assertiva { background: #d1fae5; color: #065f46; }
+    .badge-parcial { background: #fef3c7; color: #92400e; }
+    .badge-nao { background: #fee2e2; color: #991b1b; }
+    .badge-critico { background: #fee2e2; color: #991b1b; }
+    .badge-moderado { background: #fef3c7; color: #92400e; }
+
+    /* ===== ALERTS TAB ===== */
+    .alerts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 768px) { .alerts-grid { grid-template-columns: 1fr; } }
+
+    .alert-item {
+      background: white;
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      border-left: 4px solid #ef4444;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .alert-item.moderado { border-left-color: #f59e0b; }
+    .alert-item.resolved { border-left-color: #10b981; opacity: 0.6; }
+
+    .alert-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+
+    .alert-content { flex: 1; }
+
+    .alert-msg {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 4px;
+    }
+
+    .alert-causa {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .alert-dismiss {
+      background: transparent;
+      border: none;
+      color: #9ca3af;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .alert-dismiss:hover { color: #6b7280; }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: #9ca3af;
+    }
+
+    .empty-state-icon { font-size: 40px; margin-bottom: 12px; }
+
+    .empty-state-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: #6b7280;
+      margin-bottom: 6px;
+    }
+
+    .empty-state-sub { font-size: 13px; }
+
+    /* ===== CATEGORY TABLE ===== */
+    .cat-table-wrap { overflow-x: auto; }
+
+    /* ===== LOADING ===== */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .loading-overlay.hidden { display: none; }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e5e7eb;
+      border-top-color: #1a56db;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 14px;
+    }
+
+    .loading-text { font-size: 14px; font-weight: 600; color: #374151; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-spin {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    /* ===== SCORE SPARKLINE ===== */
+    .score-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .score-bar {
+      flex: 1;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: #10b981;
+    }
+
+    .score-bar-fill.mid { background: #f59e0b; }
+    .score-bar-fill.low { background: #ef4444; }
+
+    /* ===== LAST UPDATE ===== */
+    .last-update {
+      font-size: 12px;
+      color: #9ca3af;
+      text-align: right;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== LOADING ===== -->
+<div class="loading-overlay hidden" id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Carregando dados...</div>
+</div>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div class="screen active" id="screen-login">
+  <div class="login-box">
+    <div class="login-logo">M</div>
+    <h1 class="login-title">MarIA Analytics V5</h1>
+    <p class="login-sub">Monitoramento de qualidade — FitBank</p>
+
+    <label class="field-label" for="login-user">Usuário</label>
+    <input class="field-input" type="text" id="login-user" placeholder="atendimento" autocomplete="username" />
+
+    <label class="field-label" for="login-pass">Senha</label>
+    <input class="field-input" type="password" id="login-pass" placeholder="••••••••••" autocomplete="current-password" />
+
+    <button class="btn-login" id="btn-login" onclick="doLogin()">
+      <div class="btn-spin" id="login-spin"></div>
+      <span id="login-btn-label">Entrar no Analytics</span>
+    </button>
+
+    <div class="login-error" id="login-error">Credenciais inválidas. Tente novamente.</div>
+  </div>
+</div>
+
+<!-- ===== ANALYTICS SCREEN ===== -->
+<div class="screen" id="screen-analytics">
+
+  <!-- HEADER -->
+  <div class="analytics-header">
+    <div class="header-brand">
+      <div class="header-logo">M</div>
+      <div>
+        <div class="header-title">MarIA Analytics</div>
+        <div class="header-subtitle">V5 — FitBank</div>
+      </div>
+    </div>
+
+    <div class="header-tabs">
+      <button class="tab-btn active" onclick="switchTab('visao-geral')">Visão Geral</button>
+      <button class="tab-btn" onclick="switchTab('qualidade')">Qualidade</button>
+      <button class="tab-btn" onclick="switchTab('alertas')">Alertas <span id="alerta-count-badge"></span></button>
+      <button class="tab-btn" onclick="switchTab('interacoes')">Interações</button>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-refresh" onclick="refreshData()">
+        <span>↻</span> Atualizar
+      </button>
+      <button class="btn-logout" onclick="doLogout()">Sair</button>
+    </div>
+  </div>
+
+  <!-- CRITICAL ALERT BANNER -->
+  <div class="alert-banner hidden" id="alert-banner">
+    <div class="alert-banner-icon">🚨</div>
+    <div class="alert-banner-msg" id="alert-banner-msg">Alerta crítico ativo.</div>
+    <button class="alert-banner-dismiss" onclick="dismissBanner()">✕</button>
+  </div>
+
+  <!-- MAIN -->
+  <div class="analytics-main">
+    <div class="last-update" id="last-update-label"></div>
+
+    <!-- TAB: Visão Geral -->
+    <div class="tab-panel active" id="tab-visao-geral">
+      <div class="kpi-grid">
+        <div class="kpi-card green">
+          <div class="kpi-label">FCR (Assertividade)</div>
+          <div class="kpi-value" id="kpi-fcr">—</div>
+          <div class="kpi-sub" id="kpi-fcr-sub">das interações resolvidas</div>
+        </div>
+        <div class="kpi-card" id="kpi-assertiv-card">
+          <div class="kpi-label">Assertivas</div>
+          <div class="kpi-value" id="kpi-assertiv">—</div>
+          <div class="kpi-sub" id="kpi-assertiv-sub">de <span id="kpi-total-all">0</span> avaliações</div>
+        </div>
+        <div class="kpi-card yellow">
+          <div class="kpi-label">Total Hoje</div>
+          <div class="kpi-value" id="kpi-hoje">—</div>
+          <div class="kpi-sub" id="kpi-hoje-sub">interações em <span id="kpi-data-hoje"></span></div>
+        </div>
+        <div class="kpi-card" id="kpi-score-card">
+          <div class="kpi-label">Score Médio</div>
+          <div class="kpi-value" id="kpi-score">—</div>
+          <div class="kpi-sub">de 1.0 máximo</div>
+        </div>
+      </div>
+
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <div class="chart-title">Distribuição de Classificações</div>
+          <div class="chart-container">
+            <canvas id="chart-classificacao"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Score — Últimas 20 Avaliações</div>
+          <div class="chart-container">
+            <canvas id="chart-score"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: Qualidade -->
+    <div class="tab-panel" id="tab-qualidade">
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <div class="chart-title">Tipos de Erro Detectados</div>
+          <div class="chart-container tall">
+            <canvas id="chart-erros"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Volume por Categoria</div>
+          <div class="chart-container tall">
+            <canvas id="chart-categorias"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header-row">
+          <div class="table-title">Score Médio por Categoria</div>
+        </div>
+        <div class="cat-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th>Total</th>
+                <th>Assertivas</th>
+                <th>Score Médio</th>
+                <th>Barra</th>
+              </tr>
+            </thead>
+            <tbody id="cat-table-body">
+              <tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:24px;">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: Alertas -->
+    <div class="tab-panel" id="tab-alertas">
+      <div class="table-header-row" style="margin-bottom:16px;">
+        <div class="table-title">Alertas Ativos</div>
+      </div>
+      <div id="alertas-ativos-container" style="margin-bottom:32px;"></div>
+
+      <div class="table-header-row" style="margin-bottom:16px;">
+        <div class="table-title">Histórico de Alertas (Últimas 10 ocorrências)</div>
+      </div>
+      <div id="alertas-historico-container"></div>
+    </div>
+
+    <!-- TAB: Interações -->
+    <div class="tab-panel" id="tab-interacoes">
+      <div class="table-card">
+        <div class="table-header-row">
+          <div class="table-title">Últimas 50 Interações</div>
+          <select class="filter-select" id="filter-classificacao" onchange="renderInteracoes()">
+            <option value="todas">Todas as classificações</option>
+            <option value="ASSERTIVA">Assertiva</option>
+            <option value="PARCIAL">Parcial</option>
+            <option value="NAO_ASSERTIVA">Não Assertiva</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table" id="interacoes-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Pergunta</th>
+                <th>Categoria</th>
+                <th>Score</th>
+                <th>Classificação</th>
+                <th>Erro</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody id="interacoes-body">
+              <tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:24px;">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const WEBHOOK_URL = 'https://felipethomazini.app.n8n.cloud/webhook/fitbank-v5';
+const UPSTASH_URL = 'https://joint-shark-67083.upstash.io';
+const UPSTASH_TOKEN = 'gQAAAAAAAQYLAAIncDJjODljN2ZjMGE2YTc0NWJiYWI0NjUxMjBiYzBlNzFkZHAyNjcwODM';
+const AUTH_TOKEN_KEY = 'maria-analytics-token';
+const CREDENTIALS = { username: 'atendimento', password: '@Bank#Fit' };
+
+// ============================================================
+// STATE
+// ============================================================
+let evalsData = [];
+let alertasGerados = [];
+let alertasHistorico = [];
+let dismissedAlertTypes = new Set();
+let charts = {};
+let bannerDismissed = false;
+
+// ============================================================
+// UTILS
+// ============================================================
+function showLoading(msg) {
+  document.getElementById('loading-text').textContent = msg || 'Carregando...';
+  document.getElementById('loading-overlay').classList.remove('hidden');
+}
+
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+function formatTS(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch { return iso; }
+}
+
+function getTodayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function avg(arr) {
+  if (!arr.length) return 0;
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+async function doLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value;
+
+  if (!user || !pass) {
+    showLoginError('Preencha usuário e senha.');
+    return;
+  }
+
+  setLoginLoading(true);
+  document.getElementById('login-error').style.display = 'none';
+
+  try {
+    const resp = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', username: user, password: pass })
+    });
+
+    const data = await resp.json();
+
+    if (data.success && data.token) {
+      sessionStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      goToAnalytics();
+    } else {
+      showLoginError('Credenciais inválidas. Tente novamente.');
+    }
+  } catch (e) {
+    showLoginError('Erro de conexão. Verifique sua rede.');
+  } finally {
+    setLoginLoading(false);
+  }
+}
+
+function setLoginLoading(on) {
+  document.getElementById('btn-login').disabled = on;
+  document.getElementById('login-spin').style.display = on ? 'block' : 'none';
+  document.getElementById('login-btn-label').textContent = on ? 'Autenticando...' : 'Entrar no Analytics';
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function doLogout() {
+  sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  evalsData = [];
+  alertasGerados = [];
+  alertasHistorico = [];
+  dismissedAlertTypes = new Set();
+  bannerDismissed = false;
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch {} });
+  charts = {};
+  document.getElementById('screen-analytics').classList.remove('active');
+  document.getElementById('screen-login').classList.add('active');
+  document.getElementById('login-pass').value = '';
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function goToAnalytics() {
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('screen-analytics').classList.add('active');
+  loadData();
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ============================================================
+// DATA LOADING
+// ============================================================
+async function loadData() {
+  showLoading('Carregando avaliações...');
+  try {
+    const resp = await fetch(`${UPSTASH_URL}/lrange/maria-v5:analytics:evals/0/499`, {
+      headers: { 'Authorization': `Bearer ${UPSTASH_TOKEN}` }
+    });
+    const json = await resp.json();
+    const raw = json.result || [];
+
+    evalsData = [];
+    for (const item of raw) {
+      try {
+        const parsed = typeof item === 'string' ? JSON.parse(item) : item;
+        evalsData.push(parsed);
+      } catch {}
+    }
+
+    // Upstash LPUSH puts newest at index 0
+    // evalsData[0] = most recent
+
+    alertasGerados = computarAlertas(evalsData);
+    if (!bannerDismissed) updateAlertBanner();
+    renderAll();
+
+    document.getElementById('last-update-label').textContent =
+      `Última atualização: ${new Date().toLocaleString('pt-BR')} — ${evalsData.length} avaliações carregadas`;
+
+  } catch (e) {
+    console.error('Erro ao carregar dados:', e);
+    document.getElementById('last-update-label').textContent = 'Erro ao carregar dados. Tente atualizar.';
+  } finally {
+    hideLoading();
+  }
+}
+
+async function refreshData() {
+  bannerDismissed = false;
+  await loadData();
+}
+
+// ============================================================
+// ALERT COMPUTATION
+// ============================================================
+function computarAlertas(evals) {
+  const alertas = [];
+  const recentes = evals.slice(0, 50);
+  if (recentes.length < 5) return alertas;
+
+  const assertivas = recentes.filter(e => e.classificacao === 'ASSERTIVA').length;
+  const naoAssertivas = recentes.filter(e => e.classificacao === 'NAO_ASSERTIVA').length;
+  const assertividade = assertivas / recentes.length;
+  const pctNao = naoAssertivas / recentes.length;
+
+  if (assertividade < 0.70) {
+    alertas.push({
+      tipo: 'CRITICO',
+      id: 'assertividade-baixa',
+      msg: `Assertividade caiu para ${Math.round(assertividade * 100)}% nas últimas ${recentes.length} interações.`,
+      causa: `NAO_ASSERTIVA: ${Math.round(pctNao * 100)}%`,
+      ts: new Date().toISOString()
+    });
+  }
+  if (pctNao > 0.20) {
+    alertas.push({
+      tipo: 'CRITICO',
+      id: 'nao-assertiva-alta',
+      msg: `${Math.round(pctNao * 100)}% de respostas NÃO ASSERTIVAS nas últimas ${recentes.length} interações.`,
+      ts: new Date().toISOString()
+    });
+  }
+  if (recentes.length >= 50) {
+    const primeiraMetade = recentes.slice(25).map(e => e.score);
+    const segundaMetade  = recentes.slice(0, 25).map(e => e.score);
+    const mediaAntes  = avg(primeiraMetade);
+    const mediaDepois = avg(segundaMetade);
+    if (mediaAntes - mediaDepois > 0.10) {
+      alertas.push({
+        tipo: 'MODERADO',
+        id: 'score-queda',
+        msg: `Score médio caiu ${Math.round((mediaAntes - mediaDepois) * 100)} pontos nas últimas 25 interações.`,
+        ts: new Date().toISOString()
+      });
+    }
+  }
+  return alertas;
+}
+
+// ============================================================
+// RENDER ALL
+// ============================================================
+function renderAll() {
+  renderKPIs();
+  renderChartClassificacao();
+  renderChartScore();
+  renderChartErros();
+  renderChartCategorias();
+  renderCatTable();
+  renderAlertas();
+  renderInteracoes();
+}
+
+// ============================================================
+// KPIs
+// ============================================================
+function renderKPIs() {
+  const total = evalsData.length;
+  const assertivas = evalsData.filter(e => e.classificacao === 'ASSERTIVA').length;
+  const hoje = evalsData.filter(e => (e.timestamp || '').slice(0, 10) === getTodayStr()).length;
+  const scoreMedia = total ? avg(evalsData.map(e => Number(e.score) || 0)) : 0;
+  const fcrPct = total ? Math.round((assertivas / total) * 100) : 0;
+
+  document.getElementById('kpi-fcr').textContent = `${fcrPct}%`;
+  document.getElementById('kpi-fcr-sub').textContent = `${assertivas} de ${total} avaliações`;
+  document.getElementById('kpi-assertiv').textContent = assertivas;
+  document.getElementById('kpi-total-all').textContent = total;
+  document.getElementById('kpi-hoje').textContent = hoje;
+  document.getElementById('kpi-data-hoje').textContent = getTodayStr();
+  document.getElementById('kpi-score').textContent = scoreMedia.toFixed(2);
+
+  // Color the score KPI card
+  const scoreCard = document.getElementById('kpi-score-card');
+  scoreCard.className = 'kpi-card ' + (scoreMedia >= 0.75 ? 'green' : scoreMedia >= 0.5 ? 'yellow' : 'red');
+
+  // Color assertiv card
+  const assCard = document.getElementById('kpi-assertiv-card');
+  assCard.className = 'kpi-card ' + (fcrPct >= 75 ? 'green' : fcrPct >= 50 ? 'yellow' : 'red');
+}
+
+// ============================================================
+// CHARTS
+// ============================================================
+function destroyChart(id) {
+  if (charts[id]) {
+    charts[id].destroy();
+    delete charts[id];
+  }
+}
+
+function renderChartClassificacao() {
+  destroyChart('classificacao');
+  const assertivas = evalsData.filter(e => e.classificacao === 'ASSERTIVA').length;
+  const parciais   = evalsData.filter(e => e.classificacao === 'PARCIAL').length;
+  const nao        = evalsData.filter(e => e.classificacao === 'NAO_ASSERTIVA').length;
+
+  const ctx = document.getElementById('chart-classificacao').getContext('2d');
+  charts['classificacao'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Assertiva', 'Parcial', 'Não Assertiva'],
+      datasets: [{
+        data: [assertivas, parciais, nao],
+        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { font: { size: 12 }, padding: 14 }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
+              const pct = total ? Math.round((ctx.raw / total) * 100) : 0;
+              return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderChartScore() {
+  destroyChart('score');
+  const last20 = evalsData.slice(0, 20).reverse();
+  const labels = last20.map((e, i) => formatTS(e.timestamp));
+  const scores = last20.map(e => Number(e.score) || 0);
+
+  const ctx = document.getElementById('chart-score').getContext('2d');
+  charts['score'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Score',
+        data: scores,
+        borderColor: '#1a56db',
+        backgroundColor: 'rgba(26,86,219,0.08)',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointBackgroundColor: scores.map(s => s >= 0.75 ? '#10b981' : s >= 0.5 ? '#f59e0b' : '#ef4444'),
+        tension: 0.35,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          min: 0,
+          max: 1,
+          ticks: { stepSize: 0.25, font: { size: 11 } },
+          grid: { color: '#f3f4f6' }
+        },
+        x: {
+          ticks: { maxRotation: 45, font: { size: 10 }, maxTicksLimit: 10 },
+          grid: { display: false }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` Score: ${ctx.raw.toFixed(2)}`
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderChartErros() {
+  destroyChart('erros');
+  const counts = {};
+  evalsData.forEach(e => {
+    const tipo = e.erro_detectado || 'nenhum';
+    counts[tipo] = (counts[tipo] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const labels = sorted.map(([k]) => k);
+  const data   = sorted.map(([, v]) => v);
+  const colors = labels.map(l =>
+    l === 'nenhum' ? '#10b981' :
+    l === 'generica' ? '#ef4444' :
+    l === 'tecnica' ? '#f59e0b' :
+    l === 'contexto' ? '#8b5cf6' :
+    '#6b7280'
+  );
+
+  const ctx = document.getElementById('chart-erros').getContext('2d');
+  charts['erros'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Ocorrências',
+        data,
+        backgroundColor: colors,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { font: { size: 11 } }, grid: { color: '#f3f4f6' } },
+        y: { ticks: { font: { size: 12 } }, grid: { display: false } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function renderChartCategorias() {
+  destroyChart('categorias');
+  const counts = {};
+  evalsData.forEach(e => {
+    const cat = e.categoria || 'OUTROS';
+    counts[cat] = (counts[cat] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const labels = sorted.map(([k]) => k);
+  const data   = sorted.map(([, v]) => v);
+
+  const ctx = document.getElementById('chart-categorias').getContext('2d');
+  charts['categorias'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Interações',
+        data,
+        backgroundColor: '#1a56db',
+        borderRadius: 6,
+        hoverBackgroundColor: '#1e40af'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { font: { size: 11 } }, grid: { color: '#f3f4f6' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// ============================================================
+// CATEGORY TABLE
+// ============================================================
+function renderCatTable() {
+  const catMap = {};
+  evalsData.forEach(e => {
+    const cat = e.categoria || 'OUTROS';
+    if (!catMap[cat]) catMap[cat] = { total: 0, assertivas: 0, scores: [] };
+    catMap[cat].total++;
+    if (e.classificacao === 'ASSERTIVA') catMap[cat].assertivas++;
+    catMap[cat].scores.push(Number(e.score) || 0);
+  });
+
+  const rows = Object.entries(catMap)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([cat, d]) => {
+      const scoreMed = avg(d.scores);
+      const scoreClass = scoreMed >= 0.75 ? '' : scoreMed >= 0.5 ? 'mid' : 'low';
+      const assertPct = d.total ? Math.round((d.assertivas / d.total) * 100) : 0;
+      return `<tr>
+        <td><strong>${cat}</strong></td>
+        <td>${d.total}</td>
+        <td>${d.assertivas} <span style="color:#9ca3af">(${assertPct}%)</span></td>
+        <td><strong>${scoreMed.toFixed(2)}</strong></td>
+        <td>
+          <div class="score-bar-wrap">
+            <div class="score-bar">
+              <div class="score-bar-fill ${scoreClass}" style="width:${Math.round(scoreMed*100)}%"></div>
+            </div>
+            <span style="font-size:11px;color:#6b7280;">${Math.round(scoreMed*100)}%</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+  document.getElementById('cat-table-body').innerHTML = rows ||
+    '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:24px;">Sem dados suficientes</td></tr>';
+}
+
+// ============================================================
+// ALERTAS
+// ============================================================
+function updateAlertBanner() {
+  const criticos = alertasGerados.filter(a => a.tipo === 'CRITICO');
+  if (criticos.length > 0) {
+    document.getElementById('alert-banner-msg').textContent = criticos[0].msg;
+    document.getElementById('alert-banner').classList.remove('hidden');
+  } else {
+    document.getElementById('alert-banner').classList.add('hidden');
+  }
+
+  const badge = document.getElementById('alerta-count-badge');
+  if (alertasGerados.length > 0) {
+    badge.textContent = ` (${alertasGerados.length})`;
+    badge.style.color = '#ef4444';
+  } else {
+    badge.textContent = '';
+  }
+}
+
+function dismissBanner() {
+  bannerDismissed = true;
+  document.getElementById('alert-banner').classList.add('hidden');
+}
+
+function renderAlertas() {
+  updateAlertBanner();
+
+  const ativos = document.getElementById('alertas-ativos-container');
+  const hist   = document.getElementById('alertas-historico-container');
+
+  if (alertasGerados.length === 0) {
+    ativos.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">✅</div>
+        <div class="empty-state-text">Nenhum alerta ativo</div>
+        <div class="empty-state-sub">A qualidade das respostas está dentro do esperado.</div>
+      </div>`;
+  } else {
+    const activeNonDismissed = alertasGerados.filter(a => !dismissedAlertTypes.has(a.id));
+    if (activeNonDismissed.length === 0) {
+      ativos.innerHTML = '<div style="color:#6b7280;padding:12px;font-size:14px;">Todos os alertas foram descartados.</div>';
+    } else {
+      ativos.innerHTML = `<div class="alerts-grid">${
+        activeNonDismissed.map(a => `
+          <div class="alert-item ${a.tipo === 'MODERADO' ? 'moderado' : ''}">
+            <div class="alert-icon">${a.tipo === 'CRITICO' ? '🔴' : '🟡'}</div>
+            <div class="alert-content">
+              <div class="alert-msg">${a.msg}</div>
+              ${a.causa ? `<div class="alert-causa">${a.causa}</div>` : ''}
+            </div>
+            <button class="alert-dismiss" onclick="dismissAlert('${a.id}')">✕</button>
+          </div>`
+        ).join('')
+      }</div>`;
+    }
+  }
+
+  // Histórico: append current alerts to history if new
+  const now = new Date().toLocaleString('pt-BR');
+  alertasGerados.forEach(a => {
+    if (!alertasHistorico.find(h => h.id === a.id && h.data === now)) {
+      alertasHistorico.unshift({ ...a, data: now });
+    }
+  });
+  const last10 = alertasHistorico.slice(0, 10);
+
+  if (last10.length === 0) {
+    hist.innerHTML = `<div style="color:#9ca3af;font-size:13px;padding:12px;">Nenhum histórico de alertas nesta sessão.</div>`;
+  } else {
+    hist.innerHTML = `<div class="alerts-grid">${
+      last10.map(a => `
+        <div class="alert-item resolved ${a.tipo === 'MODERADO' ? 'moderado' : ''}">
+          <div class="alert-icon">${a.tipo === 'CRITICO' ? '🔴' : '🟡'}</div>
+          <div class="alert-content">
+            <div class="alert-msg">${a.msg}</div>
+            <div class="alert-causa">${a.data}</div>
+          </div>
+        </div>`
+      ).join('')
+    }</div>`;
+  }
+}
+
+function dismissAlert(id) {
+  dismissedAlertTypes.add(id);
+  renderAlertas();
+}
+
+// ============================================================
+// INTERAÇÕES TABLE
+// ============================================================
+function renderInteracoes() {
+  const filter = document.getElementById('filter-classificacao').value;
+  let filtered = evalsData.slice(0, 50);
+  if (filter !== 'todas') {
+    filtered = filtered.filter(e => e.classificacao === filter);
+  }
+
+  const tbody = document.getElementById('interacoes-body');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:24px;">Nenhuma interação encontrada.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(e => {
+    const cls = e.classificacao || 'PARCIAL';
+    const badgeClass = cls === 'ASSERTIVA' ? 'badge-assertiva' : cls === 'NAO_ASSERTIVA' ? 'badge-nao' : 'badge-parcial';
+    const score = Number(e.score) || 0;
+    const scoreColor = score >= 0.75 ? '#10b981' : score >= 0.5 ? '#f59e0b' : '#ef4444';
+
+    return `<tr>
+      <td style="white-space:nowrap;font-size:12px;color:#6b7280;">${formatTS(e.timestamp)}</td>
+      <td style="max-width:220px;font-size:12px;" title="${(e.pergunta||'').replace(/"/g,'&quot;')}">${truncate(e.pergunta || '—', 60)}</td>
+      <td><span style="font-size:12px;font-weight:600;">${e.categoria || 'OUTROS'}</span></td>
+      <td style="font-weight:700;color:${scoreColor};">${score.toFixed(2)}</td>
+      <td><span class="badge ${badgeClass}">${cls.replace('NAO_ASSERTIVA', 'NÃO ASSERTIVA')}</span></td>
+      <td style="font-size:12px;color:#6b7280;">${e.erro_detectado || 'nenhum'}</td>
+      <td style="max-width:200px;font-size:12px;color:#374151;" title="${(e.motivo||'').replace(/"/g,'&quot;')}">${truncate(e.motivo || '—', 70)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function truncate(str, len) {
+  if (!str) return '—';
+  return str.length > len ? str.slice(0, len) + '…' : str;
+}
+
+// ============================================================
+// KEYBOARD SHORTCUT (Enter on login)
+// ============================================================
+document.getElementById('login-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('login-user').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('login-pass').focus();
+});
+
+// ============================================================
+// INIT
+// ============================================================
+(function init() {
+  const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
+  if (token) {
+    goToAnalytics();
+  }
+  // Set today label
+  document.getElementById('kpi-data-hoje').textContent = getTodayStr();
+})();
+</script>
+</body>
+</html>
