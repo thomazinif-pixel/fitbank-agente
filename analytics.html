@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MarIA V5 — Analytics FitBank</title>
+  <title>MarIA Analytics FitBank — V3 + V5</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -190,6 +190,29 @@
 
     .tab-btn:hover { color: #1a56db; }
     .tab-btn.active { color: #1a56db; border-bottom-color: #1a56db; }
+
+    .version-filter {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #f3f4f6;
+      border-radius: 8px;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+    .ver-btn {
+      background: transparent;
+      border: none;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #6b7280;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ver-btn:hover { color: #1a56db; }
+    .ver-btn.active { background: white; color: #1a56db; box-shadow: 0 1px 4px rgba(0,0,0,0.10); }
 
     .header-actions {
       display: flex;
@@ -620,7 +643,7 @@
       <div class="header-logo">M</div>
       <div>
         <div class="header-title">MarIA Analytics</div>
-        <div class="header-subtitle">V5 — FitBank</div>
+        <div class="header-subtitle">V3 + V5 — FitBank</div>
       </div>
     </div>
 
@@ -629,6 +652,12 @@
       <button class="tab-btn" onclick="switchTab('qualidade')">Qualidade</button>
       <button class="tab-btn" onclick="switchTab('alertas')">Alertas <span id="alerta-count-badge"></span></button>
       <button class="tab-btn" onclick="switchTab('interacoes')">Interações</button>
+    </div>
+
+    <div class="version-filter">
+      <button class="ver-btn active" id="ver-todas" onclick="setVersion('todas')">Todas</button>
+      <button class="ver-btn" id="ver-v3" onclick="setVersion('v3')">V3</button>
+      <button class="ver-btn" id="ver-v5" onclick="setVersion('v5')">V5</button>
     </div>
 
     <div class="header-actions">
@@ -761,6 +790,7 @@
             <thead>
               <tr>
                 <th>Timestamp</th>
+                <th>Versão</th>
                 <th>Pergunta</th>
                 <th>Categoria</th>
                 <th>Score</th>
@@ -799,6 +829,22 @@ let alertasHistorico = [];
 let dismissedAlertTypes = new Set();
 let charts = {};
 let bannerDismissed = false;
+let currentVersion = 'todas';
+
+function getFilteredData() {
+  if (currentVersion === 'todas') return evalsData;
+  return evalsData.filter(e => (e.versao || '').toLowerCase() === currentVersion);
+}
+
+function setVersion(v) {
+  currentVersion = v;
+  ['todas','v3','v5'].forEach(x => {
+    document.getElementById('ver-' + x).classList.toggle('active', x === v);
+  });
+  alertasGerados = computarAlertas(getFilteredData());
+  if (!bannerDismissed) updateAlertBanner();
+  renderAll();
+}
 
 // ============================================================
 // UTILS
@@ -914,35 +960,36 @@ function switchTab(name) {
 async function loadData() {
   showLoading('Carregando avaliações...');
   try {
-    const resp = await fetch(`${UPSTASH_URL}/lrange/maria-v5:analytics:evals/0/499`, {
-      headers: { 'Authorization': `Bearer ${UPSTASH_TOKEN}` }
-    });
-    const json = await resp.json();
-    const raw = json.result || [];
+    const headers = { 'Authorization': `Bearer ${UPSTASH_TOKEN}` };
+    const [respV3, respV5] = await Promise.all([
+      fetch(`${UPSTASH_URL}/lrange/maria-v3:analytics:evals/0/499`, { headers }),
+      fetch(`${UPSTASH_URL}/lrange/maria-v5:analytics:evals/0/499`, { headers })
+    ]);
+    const [jsonV3, jsonV5] = await Promise.all([respV3.json(), respV5.json()]);
+    const rawAll = [...(jsonV3.result || []), ...(jsonV5.result || [])];
 
-    evalsData = [];
-    for (const item of raw) {
-      try {
-        // Unwrap until we get a plain object (handles single/double serialization)
-        let val = item;
-        for (let i = 0; i < 3; i++) {
-          if (typeof val === 'string') val = JSON.parse(val);
-          if (Array.isArray(val)) val = val[0];
-          if (val && typeof val === 'object' && !Array.isArray(val)) break;
-        }
-        if (val && typeof val === 'object' && val.versao) evalsData.push(val);
-      } catch {}
+    function unwrap(item) {
+      let val = item;
+      for (let i = 0; i < 3; i++) {
+        if (typeof val === 'string') val = JSON.parse(val);
+        if (Array.isArray(val)) val = val[0];
+        if (val && typeof val === 'object' && !Array.isArray(val)) break;
+      }
+      return (val && typeof val === 'object' && val.versao) ? val : null;
     }
 
-    // Upstash LPUSH puts newest at index 0
-    // evalsData[0] = most recent
+    evalsData = rawAll.map(unwrap).filter(Boolean);
+    // Sort newest first
+    evalsData.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
 
-    alertasGerados = computarAlertas(evalsData);
+    alertasGerados = computarAlertas(getFilteredData());
     if (!bannerDismissed) updateAlertBanner();
     renderAll();
 
+    const v3count = evalsData.filter(e => e.versao === 'V3').length;
+    const v5count = evalsData.filter(e => e.versao === 'V5').length;
     document.getElementById('last-update-label').textContent =
-      `Última atualização: ${new Date().toLocaleString('pt-BR')} — ${evalsData.length} avaliações carregadas`;
+      `Última atualização: ${new Date().toLocaleString('pt-BR')} — V3: ${v3count} | V5: ${v5count} avaliações`;
 
   } catch (e) {
     console.error('Erro ao carregar dados:', e);
@@ -1022,10 +1069,11 @@ function renderAll() {
 // KPIs
 // ============================================================
 function renderKPIs() {
-  const total = evalsData.length;
-  const assertivas = evalsData.filter(e => e.classificacao === 'ASSERTIVA').length;
-  const hoje = evalsData.filter(e => (e.timestamp || '').slice(0, 10) === getTodayStr()).length;
-  const scoreMedia = total ? avg(evalsData.map(e => Number(e.score) || 0)) : 0;
+  const d = getFilteredData();
+  const total = d.length;
+  const assertivas = d.filter(e => e.classificacao === 'ASSERTIVA').length;
+  const hoje = d.filter(e => (e.timestamp || '').slice(0, 10) === getTodayStr()).length;
+  const scoreMedia = total ? avg(d.map(e => Number(e.score) || 0)) : 0;
   const fcrPct = total ? Math.round((assertivas / total) * 100) : 0;
 
   document.getElementById('kpi-fcr').textContent = `${fcrPct}%`;
@@ -1057,9 +1105,10 @@ function destroyChart(id) {
 
 function renderChartClassificacao() {
   destroyChart('classificacao');
-  const assertivas = evalsData.filter(e => e.classificacao === 'ASSERTIVA').length;
-  const parciais   = evalsData.filter(e => e.classificacao === 'PARCIAL').length;
-  const nao        = evalsData.filter(e => e.classificacao === 'NAO_ASSERTIVA').length;
+  const d = getFilteredData();
+  const assertivas = d.filter(e => e.classificacao === 'ASSERTIVA').length;
+  const parciais   = d.filter(e => e.classificacao === 'PARCIAL').length;
+  const nao        = d.filter(e => e.classificacao === 'NAO_ASSERTIVA').length;
 
   const ctx = document.getElementById('chart-classificacao').getContext('2d');
   charts['classificacao'] = new Chart(ctx, {
@@ -1097,7 +1146,7 @@ function renderChartClassificacao() {
 
 function renderChartScore() {
   destroyChart('score');
-  const last20 = evalsData.slice(0, 20).reverse();
+  const last20 = getFilteredData().slice(0, 20).reverse();
   const labels = last20.map((e, i) => formatTS(e.timestamp));
   const scores = last20.map(e => Number(e.score) || 0);
 
@@ -1148,7 +1197,7 @@ function renderChartScore() {
 function renderChartErros() {
   destroyChart('erros');
   const counts = {};
-  evalsData.forEach(e => {
+  getFilteredData().forEach(e => {
     const tipo = e.erro_detectado || 'nenhum';
     counts[tipo] = (counts[tipo] || 0) + 1;
   });
@@ -1191,7 +1240,7 @@ function renderChartErros() {
 function renderChartCategorias() {
   destroyChart('categorias');
   const counts = {};
-  evalsData.forEach(e => {
+  getFilteredData().forEach(e => {
     const cat = e.categoria || 'OUTROS';
     counts[cat] = (counts[cat] || 0) + 1;
   });
@@ -1229,7 +1278,7 @@ function renderChartCategorias() {
 // ============================================================
 function renderCatTable() {
   const catMap = {};
-  evalsData.forEach(e => {
+  getFilteredData().forEach(e => {
     const cat = e.categoria || 'OUTROS';
     if (!catMap[cat]) catMap[cat] = { total: 0, assertivas: 0, scores: [] };
     catMap[cat].total++;
@@ -1358,7 +1407,7 @@ function dismissAlert(id) {
 // ============================================================
 function renderInteracoes() {
   const filter = document.getElementById('filter-classificacao').value;
-  let filtered = evalsData.slice(0, 50);
+  let filtered = getFilteredData().slice(0, 50);
   if (filter !== 'todas') {
     filtered = filtered.filter(e => e.classificacao === filter);
   }
@@ -1366,7 +1415,7 @@ function renderInteracoes() {
   const tbody = document.getElementById('interacoes-body');
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:24px;">Nenhuma interação encontrada.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:24px;">Nenhuma interação encontrada.</td></tr>';
     return;
   }
 
@@ -1375,9 +1424,12 @@ function renderInteracoes() {
     const badgeClass = cls === 'ASSERTIVA' ? 'badge-assertiva' : cls === 'NAO_ASSERTIVA' ? 'badge-nao' : 'badge-parcial';
     const score = Number(e.score) || 0;
     const scoreColor = score >= 0.75 ? '#10b981' : score >= 0.5 ? '#f59e0b' : '#ef4444';
+    const ver = (e.versao || 'V?');
+    const verColor = ver === 'V3' ? '#7c3aed' : '#1a56db';
 
     return `<tr>
       <td style="white-space:nowrap;font-size:12px;color:#6b7280;">${formatTS(e.timestamp)}</td>
+      <td><span style="font-size:11px;font-weight:700;color:${verColor};background:${verColor}1a;padding:2px 7px;border-radius:4px;">${ver}</span></td>
       <td style="max-width:220px;font-size:12px;" title="${(e.pergunta||'').replace(/"/g,'&quot;')}">${truncate(e.pergunta || '—', 60)}</td>
       <td><span style="font-size:12px;font-weight:600;">${e.categoria || 'OUTROS'}</span></td>
       <td style="font-weight:700;color:${scoreColor};">${score.toFixed(2)}</td>
