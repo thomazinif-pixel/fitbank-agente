@@ -42,12 +42,10 @@
     <div id="login-error" class="hidden bg-red-900/40 text-red-300 text-sm rounded-lg px-4 py-3 mb-4"></div>
     <div class="space-y-4">
       <div>
-        <label class="block text-slate-400 text-sm mb-1">Usuário</label>
-        <input id="inp-user" type="text" class="w-full" placeholder="coo" onkeydown="if(event.key==='Enter')fazerLogin()" />
+        <input id="inp-user" type="text" class="w-full" placeholder="Usuário" onkeydown="if(event.key==='Enter')fazerLogin()" />
       </div>
       <div>
-        <label class="block text-slate-400 text-sm mb-1">Senha</label>
-        <input id="inp-pass" type="password" class="w-full" placeholder="••••••••" onkeydown="if(event.key==='Enter')fazerLogin()" />
+        <input id="inp-pass" type="password" class="w-full" placeholder="Senha" onkeydown="if(event.key==='Enter')fazerLogin()" />
       </div>
       <button onclick="fazerLogin()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition-colors" id="btn-login">
         Entrar
