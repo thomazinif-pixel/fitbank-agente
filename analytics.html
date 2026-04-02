@@ -778,12 +778,12 @@
     <div class="tab-panel active" id="tab-visao-geral">
       <div class="kpi-grid">
         <div class="kpi-card green">
-          <div class="kpi-label">FCR (Assertividade)</div>
+          <div class="kpi-label">FCR — IA (Assertividade)</div>
           <div class="kpi-value" id="kpi-fcr">—</div>
           <div class="kpi-sub" id="kpi-fcr-sub">das interações resolvidas</div>
         </div>
         <div class="kpi-card" id="kpi-assertiv-card">
-          <div class="kpi-label">Assertivas</div>
+          <div class="kpi-label">Assertivas — IA</div>
           <div class="kpi-value" id="kpi-assertiv">—</div>
           <div class="kpi-sub" id="kpi-assertiv-sub">de <span id="kpi-total-all">0</span> avaliações</div>
         </div>
@@ -793,9 +793,24 @@
           <div class="kpi-sub" id="kpi-hoje-sub">interações em <span id="kpi-data-hoje"></span></div>
         </div>
         <div class="kpi-card" id="kpi-score-card">
-          <div class="kpi-label">Score Médio</div>
+          <div class="kpi-label">Score Médio — IA</div>
           <div class="kpi-value" id="kpi-score">—</div>
           <div class="kpi-sub">de 1.0 máximo</div>
+        </div>
+        <div class="kpi-card" id="kpi-nota-card">
+          <div class="kpi-label">Nota Média — Usuários</div>
+          <div class="kpi-value" id="kpi-nota-media">—</div>
+          <div class="kpi-sub" id="kpi-nota-sub">de 5.0 máximo</div>
+        </div>
+        <div class="kpi-card" id="kpi-assertiva-usuario-card">
+          <div class="kpi-label">Assertiva — Usuários</div>
+          <div class="kpi-value" id="kpi-assertiva-usuario">—</div>
+          <div class="kpi-sub" id="kpi-assertiva-usuario-sub">consideraram assertiva</div>
+        </div>
+        <div class="kpi-card" id="kpi-conflito-card">
+          <div class="kpi-label">Conflito IA vs Usuário</div>
+          <div class="kpi-value" id="kpi-conflito">—</div>
+          <div class="kpi-sub" id="kpi-conflito-sub">avaliações divergentes</div>
         </div>
       </div>
 
@@ -1460,13 +1475,47 @@ function renderKPIs() {
   document.getElementById('kpi-data-hoje').textContent = getTodayStr();
   document.getElementById('kpi-score').textContent = scoreMedia.toFixed(2);
 
-  // Color the score KPI card
   const scoreCard = document.getElementById('kpi-score-card');
   scoreCard.className = 'kpi-card ' + (scoreMedia >= 0.75 ? 'green' : scoreMedia >= 0.5 ? 'yellow' : 'red');
-
-  // Color assertiv card
   const assCard = document.getElementById('kpi-assertiv-card');
   assCard.className = 'kpi-card ' + (fcrPct >= 75 ? 'green' : fcrPct >= 50 ? 'yellow' : 'red');
+
+  // KPIs de feedback do usuário
+  const fb = getFeedbackFiltered();
+  const fbTotal = fb.length;
+  const fbSim = fb.filter(f => f.assertiva === true).length;
+  const fbNao = fb.filter(f => f.assertiva === false).length;
+  const notaMedia = fbTotal ? avg(fb.map(f => Number(f.nota) || 0)) : 0;
+  const pctAssertivUsuario = fbTotal ? Math.round((fbSim / fbTotal) * 100) : 0;
+
+  // Conflito: usuário disse Não mas IA disse ASSERTIVA, ou usuário disse Sim mas IA disse NAO_ASSERTIVA
+  // Para cruzar: match feedback com eval por ticket_id
+  let conflitos = 0;
+  if (fbTotal > 0) {
+    const evalMap = {};
+    d.forEach(e => { evalMap[e.ticket_id] = e; });
+    fb.forEach(f => {
+      const ev = evalMap[f.ticket_id];
+      if (!ev) return;
+      const iaAssertiva = ev.classificacao === 'ASSERTIVA';
+      if (f.assertiva !== iaAssertiva) conflitos++;
+    });
+  }
+
+  document.getElementById('kpi-nota-media').textContent = fbTotal ? notaMedia.toFixed(1) : '—';
+  document.getElementById('kpi-nota-sub').textContent = fbTotal ? `de ${fbTotal} feedbacks` : 'sem feedbacks ainda';
+  document.getElementById('kpi-assertiva-usuario').textContent = fbTotal ? `${pctAssertivUsuario}%` : '—';
+  document.getElementById('kpi-assertiva-usuario-sub').textContent = fbTotal ? `${fbSim} sim / ${fbNao} não` : 'sem feedbacks ainda';
+  document.getElementById('kpi-conflito').textContent = fbTotal ? conflitos : '—';
+  document.getElementById('kpi-conflito-sub').textContent = fbTotal ? `de ${fbTotal} feedbacks cruzados` : 'sem feedbacks ainda';
+
+  const notaCard = document.getElementById('kpi-nota-card');
+  notaCard.className = 'kpi-card ' + (notaMedia >= 4 ? 'green' : notaMedia >= 3 ? 'yellow' : fbTotal ? 'red' : '');
+  const assUsuCard = document.getElementById('kpi-assertiva-usuario-card');
+  assUsuCard.className = 'kpi-card ' + (pctAssertivUsuario >= 75 ? 'green' : pctAssertivUsuario >= 50 ? 'yellow' : fbTotal ? 'red' : '');
+  const conflitoCard = document.getElementById('kpi-conflito-card');
+  const pctConflito = fbTotal ? Math.round((conflitos / fbTotal) * 100) : 0;
+  conflitoCard.className = 'kpi-card ' + (pctConflito >= 30 ? 'red' : pctConflito >= 15 ? 'yellow' : fbTotal ? 'green' : '');
 }
 
 // ============================================================
@@ -1804,11 +1853,10 @@ function renderInteracoes() {
     fbByTicket[tid].push(f);
   });
 
-  function findNota(e) {
+  function findFeedback(e) {
     const list = fbByTicket[e.ticket_id || ''];
     if (!list || list.length === 0) return null;
     const evalTs = new Date(e.timestamp).getTime();
-    // Find closest feedback whose msg_timestamp is within 90s before eval.timestamp
     let best = null, bestDiff = Infinity;
     list.forEach(f => {
       const fTs = new Date(f.msg_timestamp || f.timestamp).getTime();
@@ -1818,7 +1866,7 @@ function renderInteracoes() {
         best = f;
       }
     });
-    return best ? Number(best.nota) : null;
+    return best || null;
   }
 
   const notaColors = ['','#ef4444','#f97316','#f59e0b','#84cc16','#10b981'];
@@ -1832,19 +1880,27 @@ function renderInteracoes() {
     const ver = (e.versao || 'V?');
     const verColor = ver === 'V3' ? '#7c3aed' : '#1a56db';
 
-    const nota = findNota(e);
+    const fbMatch = findFeedback(e);
+    const nota = fbMatch ? Number(fbMatch.nota) : null;
     const notaCell = nota !== null
       ? `<span style="font-weight:700;color:${notaColors[nota]};" title="Nota ${nota}/5">${nota} ${notaLabels[nota]}</span>`
       : `<span style="color:#d1d5db;font-size:11px;">—</span>`;
 
-    return `<tr>
+    // Conflict: IA says ASSERTIVA but user said Não (or vice-versa)
+    const iaAssertiva = cls === 'ASSERTIVA';
+    const hasConflict = fbMatch !== null && (fbMatch.assertiva !== iaAssertiva);
+    const clsBadge = hasConflict
+      ? `<span class="badge ${badgeClass}">${cls.replace('NAO_ASSERTIVA', 'NÃO ASSERTIVA')}</span> <span title="Usuário discorda da IA" style="font-size:11px;background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 5px;font-weight:700;">⚠ conflito</span>`
+      : `<span class="badge ${badgeClass}">${cls.replace('NAO_ASSERTIVA', 'NÃO ASSERTIVA')}</span>`;
+
+    return `<tr${hasConflict ? ' style="background:#fffbeb;"' : ''}>
       <td style="white-space:nowrap;font-size:12px;color:#6b7280;">${formatTS(e.timestamp)}</td>
       <td><span style="font-size:11px;font-weight:700;color:${verColor};background:${verColor}1a;padding:2px 7px;border-radius:4px;">${ver}</span></td>
       <td style="max-width:220px;font-size:12px;" title="${(e.pergunta||'').replace(/"/g,'&quot;')}">${truncate(e.pergunta || '—', 60)}</td>
       <td><span style="font-size:12px;font-weight:600;">${e.categoria || 'OUTROS'}</span></td>
       <td style="font-weight:700;color:${scoreColor};">${score.toFixed(2)}</td>
       <td style="text-align:center;">${notaCell}</td>
-      <td><span class="badge ${badgeClass}">${cls.replace('NAO_ASSERTIVA', 'NÃO ASSERTIVA')}</span></td>
+      <td>${clsBadge}</td>
       <td style="font-size:12px;color:#6b7280;">${e.erro_detectado || 'nenhum'}</td>
       <td style="max-width:200px;font-size:12px;color:#374151;" title="${(e.motivo||'').replace(/"/g,'&quot;')}">${truncate(e.motivo || '—', 70)}</td>
     </tr>`;
