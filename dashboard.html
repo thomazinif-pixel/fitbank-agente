@@ -27,6 +27,10 @@
     .modal-box { background:#1a1d27; border:1px solid #2a2d3a; border-radius:16px; max-width:800px; width:95%; max-height:80vh; overflow-y:auto; padding:24px; }
     tr:hover td { background:#1e2235; }
     ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#0f1117; } ::-webkit-scrollbar-thumb { background:#2a2d3a; border-radius:3px; }
+    .tab-btn { padding:6px 18px; border-radius:8px; font-size:14px; font-weight:500; color:#64748b; transition:all .2s; cursor:pointer; border:none; background:transparent; }
+    .tab-btn.active { background:#6366f1; color:#fff; }
+    .tab-btn:not(.active):hover { background:#1e2235; color:#e2e8f0; }
+    .devops-insight-item { border-left:3px solid #6366f1; background:rgba(99,102,241,0.06); border-radius:0 8px 8px 0; padding:12px 16px; }
   </style>
 </head>
 <body class="text-slate-200 min-h-screen">
@@ -100,6 +104,15 @@
         <button onclick="limparFiltros()" class="text-slate-400 hover:text-white text-sm px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors">Limpar</button>
       </div>
     </div>
+
+    <!-- TAB NAV -->
+    <div class="flex items-center gap-2 px-1">
+      <button id="tab-ops" class="tab-btn active" onclick="switchTab('ops')">📊 Operacional</button>
+      <button id="tab-devops" class="tab-btn" onclick="switchTab('devops')">🛠 DevOps N2 — Análise</button>
+    </div>
+
+    <!-- PAINEL OPERACIONAL -->
+    <div id="panel-ops">
 
     <!-- KPI CARDS -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="kpi-grid">
@@ -209,6 +222,127 @@
         </div>
       </div>
     </div>
+
+    </div><!-- /panel-ops -->
+
+    <!-- PAINEL DEVOPS N2 -->
+    <div id="panel-devops" class="hidden space-y-5">
+
+      <!-- KPI CARDS DEVOPS -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="kpi-card p-5 rounded-xl">
+          <div class="text-2xl mb-1">📋</div>
+          <div class="text-3xl font-bold text-blue-400">644</div>
+          <div class="text-slate-500 text-xs mt-1">Total Incidentes</div>
+          <div class="text-slate-600 text-xs mt-1">Jan – Abr 2026</div>
+        </div>
+        <div class="kpi-card p-5 rounded-xl">
+          <div class="text-2xl mb-1">⏱</div>
+          <div class="text-3xl font-bold text-purple-400">3.115h</div>
+          <div class="text-slate-500 text-xs mt-1">Esforço Total</div>
+          <div class="text-slate-600 text-xs mt-1">Média 5,0h / incidente</div>
+        </div>
+        <div class="kpi-card p-5 rounded-xl">
+          <div class="text-2xl mb-1">🎫</div>
+          <div class="text-3xl font-bold text-yellow-400">56,5%</div>
+          <div class="text-slate-500 text-xs mt-1">Via Zendesk</div>
+          <div class="text-slate-600 text-xs mt-1">364 de 644 incidentes</div>
+        </div>
+        <div class="kpi-card p-5 rounded-xl">
+          <div class="text-2xl mb-1">🚨</div>
+          <div class="text-3xl font-bold text-red-400">323</div>
+          <div class="text-slate-500 text-xs mt-1">Pico — Março 2026</div>
+          <div class="text-slate-600 text-xs mt-1">2× a média anterior</div>
+        </div>
+      </div>
+
+      <!-- ROW 1: Donut Origem + Bar Mensal -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="card p-5">
+          <h2 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+            <span>🔀</span> Origem dos Incidentes
+          </h2>
+          <div class="flex items-center justify-center" style="height:230px">
+            <canvas id="dv-origem-chart"></canvas>
+          </div>
+        </div>
+        <div class="card p-5">
+          <h2 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+            <span>📅</span> Tendência Mensal — Jan–Abr 2026
+          </h2>
+          <canvas id="dv-mensal-chart" height="190"></canvas>
+        </div>
+      </div>
+
+      <!-- ROW 2: Bar Horizontal Clientes (wide) -->
+      <div class="card p-5">
+        <h2 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+          <span>🏢</span> Top Clientes — Total vs Via Zendesk
+          <span class="ml-auto text-xs text-slate-600 font-normal">Excluindo Multi-BU/Geral (267 incidentes)</span>
+        </h2>
+        <canvas id="dv-clientes-chart" height="130"></canvas>
+      </div>
+
+      <!-- ROW 3: Bar Serviços + Donut Causas -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="card p-5">
+          <h2 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+            <span>⚙️</span> Incidentes por Serviço (Area Path)
+          </h2>
+          <canvas id="dv-servicos-chart" height="210"></canvas>
+        </div>
+        <div class="card p-5">
+          <h2 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+            <span>🔍</span> Causas Raiz
+          </h2>
+          <div class="flex items-center justify-center" style="height:230px">
+            <canvas id="dv-causas-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 4: Bar Outcomes + Análise Textual -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="card p-5">
+          <h2 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+            <span>✅</span> Outcomes — Como Foi Resolvido
+          </h2>
+          <canvas id="dv-outcomes-chart" height="210"></canvas>
+        </div>
+
+        <!-- Painel de Análise Textual -->
+        <div class="card p-5 flex flex-col">
+          <h2 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+            <span>🧠</span> Análise — Conclusões Batch
+            <span class="ml-auto text-xs text-slate-600 font-normal">Incidentes_Clientes.csv · Abr/2026</span>
+          </h2>
+          <div class="space-y-3 overflow-y-auto flex-1" style="max-height:310px">
+            <div class="devops-insight-item">
+              <div class="text-xs text-indigo-400 font-semibold mb-1 uppercase tracking-wide">Volume / Tendência</div>
+              <p class="text-slate-300 text-sm leading-relaxed">Março/2026 registrou <strong class="text-white">323 incidentes</strong> — o dobro da média de Jan/Fev (~158/mês). Esse pico isolado indica evento sistêmico, não ruído pontual.</p>
+            </div>
+            <div class="devops-insight-item" style="border-left-color:#f59e0b">
+              <div class="text-xs text-yellow-400 font-semibold mb-1 uppercase tracking-wide">Escalonamento N1 → N2</div>
+              <p class="text-slate-300 text-sm leading-relaxed"><strong class="text-white">56,5% dos incidentes</strong> chegam via Zendesk (Operations + Sustentação). O N1 não está absorvendo — oportunidade de runbooks e automações de primeiro nível para conter escaladas.</p>
+            </div>
+            <div class="devops-insight-item" style="border-left-color:#ef4444">
+              <div class="text-xs text-red-400 font-semibold mb-1 uppercase tracking-wide">Cliente Prioridade</div>
+              <p class="text-slate-300 text-sm leading-relaxed"><strong class="text-white">OMIE lidera</strong> com 63 incidentes, 54 via Zendesk (86%). <strong class="text-white">Accounts</strong> tem 90% de incidentes chegando via cliente — produto com baixa resiliência ou onboarding deficiente.</p>
+            </div>
+            <div class="devops-insight-item" style="border-left-color:#8b5cf6">
+              <div class="text-xs text-purple-400 font-semibold mb-1 uppercase tracking-wide">Causa Raiz Estrutural</div>
+              <p class="text-slate-300 text-sm leading-relaxed"><strong class="text-white">Datafix é o outcome mais comum</strong> (162 casos). Corrigir dados manualmente de forma recorrente aponta para ausência de validações ou inconsistência de processos na camada de dados.</p>
+            </div>
+            <div class="devops-insight-item" style="border-left-color:#10b981">
+              <div class="text-xs text-emerald-400 font-semibold mb-1 uppercase tracking-wide">Infra vs Desenvolvimento</div>
+              <p class="text-slate-300 text-sm leading-relaxed">Causas de <strong class="text-white">Infrastructure (142)</strong> e <strong class="text-white">Development (136)</strong> estão praticamente empatadas. Sem dominância clara, recomenda-se granularidade maior nas categorias de causa raiz para priorização efetiva.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /panel-devops -->
+
   </div>
 </div>
 
@@ -239,6 +373,9 @@ const ENDPOINTS = {
 
 let ticketsChart = null;
 let debounceTimer = null;
+// DevOps N2 charts (lazy-init)
+let dvOrigemChart = null, dvMensalChart = null, dvClientesChart = null;
+let dvServicosChart = null, dvCausasChart = null, dvOutcomesChart = null;
 
 // ============================================================
 // AUTH
@@ -618,6 +755,150 @@ function fecharModal(e) {
 // ============================================================
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function switchTab(tab) {
+  const isOps = tab === 'ops';
+  document.getElementById('panel-ops').classList.toggle('hidden', !isOps);
+  document.getElementById('panel-devops').classList.toggle('hidden', isOps);
+  document.getElementById('tab-ops').classList.toggle('active', isOps);
+  document.getElementById('tab-devops').classList.toggle('active', !isOps);
+  if (!isOps && !dvOrigemChart) initDevOpsCharts();
+}
+
+// ============================================================
+// DEVOPS N2 — CHARTS (hardcoded batch CSV analysis)
+// ============================================================
+function initDevOpsCharts() {
+  const SCALE = {
+    x: { ticks:{ color:'#64748b' }, grid:{ color:'#1e2235' } },
+    y: { ticks:{ color:'#64748b' }, grid:{ color:'#1e2235' }, beginAtZero:true }
+  };
+
+  // 1. DONUT — Origem
+  dvOrigemChart = new Chart(
+    document.getElementById('dv-origem-chart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Via Zendesk (Ops/Sust)', 'Controle Operacional', 'Interno (Alerts/Dev)'],
+      datasets: [{
+        data: [364, 162, 116],
+        backgroundColor: ['#6366f1','#f59e0b','#10b981'],
+        borderColor: '#1a1d27', borderWidth: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { position:'bottom', labels:{ color:'#94a3b8', boxWidth:14, font:{size:11} } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} (${((ctx.parsed/642)*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+
+  // 2. BAR — Mensal
+  dvMensalChart = new Chart(
+    document.getElementById('dv-mensal-chart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: ['Jan/2026','Fev/2026','Mar/2026','Abr/2026*'],
+      datasets: [{
+        label: 'Incidentes',
+        data: [158, 159, 323, 4],
+        backgroundColor: ['#6366f1','#6366f1','#ef4444','#475569'],
+        borderColor:      ['#818cf8','#818cf8','#f87171','#64748b'],
+        borderWidth: 1, borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels:{ color:'#94a3b8' } },
+        tooltip: { callbacks: { afterLabel: ctx => ctx.label.includes('*') ? '* Mês em curso' : '' } }
+      },
+      scales: { ...SCALE, y: { ...SCALE.y, max:370 } }
+    }
+  });
+
+  // 3. BAR HORIZONTAL — Clientes (top 9 nomeados)
+  dvClientesChart = new Chart(
+    document.getElementById('dv-clientes-chart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: ['OMIE','JP Morgan','P4X Soluções','CondoConta','AOLIGEL/KWAI','RODOBANK','OWL Digital','DOCK','Nuvemshop'],
+      datasets: [
+        { label:'Total', data:[63,29,27,27,18,17,14,14,12], backgroundColor:'rgba(99,102,241,0.8)', borderRadius:4 },
+        { label:'Via Zendesk', data:[54,18,26,22,null,null,12,null,11], backgroundColor:'rgba(245,158,11,0.8)', borderRadius:4 }
+      ]
+    },
+    options: {
+      indexAxis: 'y', responsive: true,
+      plugins: { legend: { labels:{ color:'#94a3b8' } } },
+      scales: {
+        x: { ...SCALE.x, beginAtZero:true },
+        y: { ticks:{ color:'#94a3b8', font:{size:12} }, grid:{ color:'#1e2235' } }
+      }
+    }
+  });
+
+  // 4. BAR — Serviços
+  dvServicosChart = new Chart(
+    document.getElementById('dv-servicos-chart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: ['Core & Services','Payments','Collection','Accounts','SPB','Transactions'],
+      datasets: [
+        { label:'Total', data:[198,137,129,49,45,28], backgroundColor:'rgba(99,102,241,0.75)', borderRadius:4 },
+        { label:'Via Zendesk', data:[136,48,75,44,23,null], backgroundColor:'rgba(16,185,129,0.75)', borderRadius:4 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend:{ labels:{ color:'#94a3b8' } } },
+      scales: SCALE
+    }
+  });
+
+  // 5. DONUT — Causas Raiz
+  dvCausasChart = new Chart(
+    document.getElementById('dv-causas-chart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Infrastructure','Development','External Supplier','Config/Param','No Problem','Ext. Client','Product'],
+      datasets: [{
+        data: [142,136,101,64,51,51,47],
+        backgroundColor: ['#ef4444','#6366f1','#f59e0b','#10b981','#64748b','#8b5cf6','#06b6d4'],
+        borderColor: '#1a1d27', borderWidth: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { position:'bottom', labels:{ color:'#94a3b8', boxWidth:12, font:{size:10} } } }
+    }
+  });
+
+  // 6. BAR — Outcomes
+  dvOutcomesChart = new Chart(
+    document.getElementById('dv-outcomes-chart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: ['Datafix','Explanation','Hotfix','Palliative','Re-Deploy'],
+      datasets: [{
+        label: 'Incidentes',
+        data: [162,153,128,109,38],
+        backgroundColor: ['#ef4444','#6366f1','#f59e0b','#8b5cf6','#10b981'],
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend:{ display:false } },
+      scales: SCALE
+    }
+  });
 }
 
 // ============================================================
