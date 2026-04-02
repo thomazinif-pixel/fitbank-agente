@@ -1156,6 +1156,8 @@ function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${name}`).classList.add('active');
   event.currentTarget.classList.add('active');
+  // Chart.js não renderiza em canvas oculto — re-renderiza ao abrir a aba
+  if (name === 'feedback') renderFeedbackCharts();
 }
 
 // ============================================================
