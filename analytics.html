@@ -1177,22 +1177,36 @@ async function loadData() {
       respV3.json(), respV5.json(), respFbV3.json(), respFbV5.json()
     ]);
 
-    function unwrap(item, requiredField) {
+    function unwrap(item) {
       let val = item;
       for (let i = 0; i < 3; i++) {
-        if (typeof val === 'string') val = JSON.parse(val);
+        if (typeof val === 'string') { try { val = JSON.parse(val); } catch { break; } }
         if (Array.isArray(val)) val = val[0];
         if (val && typeof val === 'object' && !Array.isArray(val)) break;
       }
-      return (val && typeof val === 'object' && val[requiredField]) ? val : null;
+      return (val && typeof val === 'object') ? val : null;
     }
 
+    // Evals: deduplicate by ticket_id — pairs within 60s are duplicates (n8n v1 double-execution)
     const rawAll = [...(jsonV3.result || []), ...(jsonV5.result || [])];
-    evalsData = rawAll.map(i => unwrap(i, 'versao')).filter(Boolean);
-    evalsData.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+    const allEvals = rawAll.map(unwrap).filter(v => v && v.versao);
+    allEvals.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+    const seenEvals = {};
+    evalsData = allEvals.filter(e => {
+      const key = e.ticket_id + '|' + e.pergunta;
+      const ts = new Date(e.timestamp).getTime();
+      if (seenEvals[key] && Math.abs(seenEvals[key] - ts) < 60000) return false;
+      seenEvals[key] = ts;
+      return true;
+    });
 
+    // Feedback: normalize assertiva to boolean robustly
     const rawFb = [...(jsonFbV3.result || []), ...(jsonFbV5.result || [])];
-    feedbackData = rawFb.map(i => unwrap(i, 'nota')).filter(Boolean);
+    feedbackData = rawFb.map(unwrap).filter(v => v && v.nota !== undefined).map(f => ({
+      ...f,
+      assertiva: f.assertiva === true || f.assertiva === 'true' || f.assertiva === 1,
+      nota: Number(f.nota)
+    }));
     feedbackData.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
 
     alertasGerados = computarAlertas(getFilteredData());
