@@ -726,6 +726,7 @@
     <div class="header-tabs">
       <button class="tab-btn active" onclick="switchTab('visao-geral')">Visão Geral</button>
       <button class="tab-btn" onclick="switchTab('qualidade')">Qualidade</button>
+      <button class="tab-btn" onclick="switchTab('feedback')">Feedback Usuários</button>
       <button class="tab-btn" onclick="switchTab('alertas')">Alertas <span id="alerta-count-badge"></span></button>
       <button class="tab-btn" onclick="switchTab('interacoes')">Interações</button>
     </div>
@@ -854,6 +855,36 @@
       </div>
     </div>
 
+    <!-- TAB: Feedback Usuários -->
+    <div class="tab-panel" id="tab-feedback">
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <div class="chart-title">Distribuição de Notas (1–5)</div>
+          <div class="chart-container tall">
+            <canvas id="chart-notas"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Assertividade Percebida pelos Usuários</div>
+          <div class="chart-container tall">
+            <canvas id="chart-assertiva-usuario"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="chart-grid-2" style="margin-top:0;">
+        <div class="chart-card">
+          <div class="chart-title">Cruzamento: Nota do Usuário × Score IA</div>
+          <div class="chart-container tall">
+            <canvas id="chart-cruzamento"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Resumo de Feedback</div>
+          <div style="padding:16px 0;" id="feedback-resumo-kpis"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- TAB: Alertas -->
     <div class="tab-panel" id="tab-alertas">
       <div class="table-header-row" style="margin-bottom:16px;">
@@ -918,6 +949,7 @@ const CREDENTIALS = { username: 'atendimento', password: '@Bank#Fit' };
 // STATE
 // ============================================================
 let evalsData = [];
+let feedbackData = [];
 let alertasGerados = [];
 let alertasHistorico = [];
 let dismissedAlertTypes = new Set();
@@ -1132,26 +1164,33 @@ async function loadData() {
   showLoading('Carregando avaliações...');
   try {
     const headers = { 'Authorization': `Bearer ${UPSTASH_TOKEN}` };
-    const [respV3, respV5] = await Promise.all([
+    const [respV3, respV5, respFbV3, respFbV5] = await Promise.all([
       fetch(`${UPSTASH_URL}/lrange/maria-v3:analytics:evals/0/-1`, { headers }),
-      fetch(`${UPSTASH_URL}/lrange/maria-v5:analytics:evals/0/-1`, { headers })
+      fetch(`${UPSTASH_URL}/lrange/maria-v5:analytics:evals/0/-1`, { headers }),
+      fetch(`${UPSTASH_URL}/lrange/maria-v3:analytics:feedback/0/-1`, { headers }),
+      fetch(`${UPSTASH_URL}/lrange/maria-v5:analytics:feedback/0/-1`, { headers })
     ]);
-    const [jsonV3, jsonV5] = await Promise.all([respV3.json(), respV5.json()]);
-    const rawAll = [...(jsonV3.result || []), ...(jsonV5.result || [])];
+    const [jsonV3, jsonV5, jsonFbV3, jsonFbV5] = await Promise.all([
+      respV3.json(), respV5.json(), respFbV3.json(), respFbV5.json()
+    ]);
 
-    function unwrap(item) {
+    function unwrap(item, requiredField) {
       let val = item;
       for (let i = 0; i < 3; i++) {
         if (typeof val === 'string') val = JSON.parse(val);
         if (Array.isArray(val)) val = val[0];
         if (val && typeof val === 'object' && !Array.isArray(val)) break;
       }
-      return (val && typeof val === 'object' && val.versao) ? val : null;
+      return (val && typeof val === 'object' && val[requiredField]) ? val : null;
     }
 
-    evalsData = rawAll.map(unwrap).filter(Boolean);
-    // Sort newest first
+    const rawAll = [...(jsonV3.result || []), ...(jsonV5.result || [])];
+    evalsData = rawAll.map(i => unwrap(i, 'versao')).filter(Boolean);
     evalsData.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+
+    const rawFb = [...(jsonFbV3.result || []), ...(jsonFbV5.result || [])];
+    feedbackData = rawFb.map(i => unwrap(i, 'nota')).filter(Boolean);
+    feedbackData.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
 
     alertasGerados = computarAlertas(getFilteredData());
     if (!bannerDismissed) updateAlertBanner();
@@ -1160,7 +1199,7 @@ async function loadData() {
     const v3count = evalsData.filter(e => e.versao === 'V3').length;
     const v5count = evalsData.filter(e => e.versao === 'V5').length;
     document.getElementById('last-update-label').textContent =
-      `Última atualização: ${new Date().toLocaleString('pt-BR')} — V3: ${v3count} | V5: ${v5count} avaliações`;
+      `Última atualização: ${new Date().toLocaleString('pt-BR')} — V3: ${v3count} | V5: ${v5count} avaliações | Feedbacks: ${feedbackData.length}`;
     updateDateActiveLabel();
 
   } catch (e) {
@@ -1235,6 +1274,154 @@ function renderAll() {
   renderCatTable();
   renderAlertas();
   renderInteracoes();
+  renderFeedbackCharts();
+}
+
+// ============================================================
+// FEEDBACK CHARTS
+// ============================================================
+function getFeedbackFiltered() {
+  let d = feedbackData;
+  if (currentVersion !== 'todas') d = d.filter(f => (f.versao || '').toLowerCase() === currentVersion);
+  return d;
+}
+
+function renderFeedbackCharts() {
+  const d = getFeedbackFiltered();
+
+  // ── Chart 1: Distribuição de Notas (1–5) ─────────────────────────────────
+  destroyChart('notas');
+  const notaCounts = [0,0,0,0,0];
+  d.forEach(f => { const n = Number(f.nota); if (n >= 1 && n <= 5) notaCounts[n-1]++; });
+  const notaColors = ['#ef4444','#f97316','#f59e0b','#84cc16','#10b981'];
+  const ctxN = document.getElementById('chart-notas').getContext('2d');
+  charts['notas'] = new Chart(ctxN, {
+    type: 'bar',
+    data: {
+      labels: ['1 — Muito ruim','2 — Ruim','3 — Regular','4 — Bom','5 — Ótimo'],
+      datasets: [{ label: 'Respostas', data: notaCounts, backgroundColor: notaColors, borderRadius: 7 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#f3f4f6' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // ── Chart 2: Assertividade percebida (Sim / Não) ─────────────────────────
+  destroyChart('assertiva-usuario');
+  const sim = d.filter(f => f.assertiva === true).length;
+  const nao = d.filter(f => f.assertiva === false).length;
+  const ctxA = document.getElementById('chart-assertiva-usuario').getContext('2d');
+  charts['assertiva-usuario'] = new Chart(ctxA, {
+    type: 'doughnut',
+    data: {
+      labels: ['Assertiva (Sim)', 'Não Assertiva (Não)'],
+      datasets: [{ data: [sim, nao], backgroundColor: ['#10b981','#ef4444'], borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 14 } },
+        tooltip: { callbacks: { label: ctx => {
+          const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+          const pct = total ? Math.round((ctx.raw/total)*100) : 0;
+          return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
+        }}}
+      }
+    }
+  });
+
+  // ── Chart 3: Cruzamento Nota Usuário × Score IA ───────────────────────────
+  destroyChart('cruzamento');
+  // Group by nota: avg score IA
+  const grupoNota = {};
+  d.forEach(f => {
+    const n = Number(f.nota);
+    if (n < 1 || n > 5) return;
+    if (!grupoNota[n]) grupoNota[n] = { scores: [], count: 0 };
+    if (f.eval_score !== null && f.eval_score !== undefined) {
+      grupoNota[n].scores.push(Number(f.eval_score));
+    }
+    grupoNota[n].count++;
+  });
+  const cruzLabels = ['1','2','3','4','5'];
+  const cruzScoreIA = cruzLabels.map(n => {
+    const g = grupoNota[Number(n)];
+    if (!g || g.scores.length === 0) return null;
+    return +(g.scores.reduce((a,b)=>a+b,0)/g.scores.length).toFixed(2);
+  });
+  const cruzCount = cruzLabels.map(n => (grupoNota[Number(n)] || {}).count || 0);
+  const ctxC = document.getElementById('chart-cruzamento').getContext('2d');
+  charts['cruzamento'] = new Chart(ctxC, {
+    type: 'bar',
+    data: {
+      labels: cruzLabels.map(n => 'Nota ' + n),
+      datasets: [
+        {
+          label: 'Score Médio IA',
+          data: cruzScoreIA,
+          backgroundColor: '#1a56db',
+          borderRadius: 7,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Qtd Feedbacks',
+          data: cruzCount,
+          type: 'line',
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245,158,11,0.1)',
+          borderWidth: 2,
+          pointRadius: 5,
+          pointBackgroundColor: '#f59e0b',
+          yAxisID: 'y2'
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y:  { min: 0, max: 1, ticks: { stepSize: 0.25, font: { size: 11 } }, grid: { color: '#f3f4f6' }, title: { display: true, text: 'Score IA', font: { size: 11 } } },
+        y2: { position: 'right', ticks: { stepSize: 1, font: { size: 11 } }, grid: { display: false }, title: { display: true, text: 'Feedbacks', font: { size: 11 } } },
+        x:  { ticks: { font: { size: 12 } }, grid: { display: false } }
+      },
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 12 } } }
+    }
+  });
+
+  // ── KPIs de feedback ──────────────────────────────────────────────────────
+  const total = d.length;
+  const notaMedia = total ? (d.reduce((a,f)=>a+Number(f.nota||0),0)/total).toFixed(1) : '—';
+  const pctSim = total ? Math.round((sim/total)*100) : 0;
+  const concordancia = d.filter(f => {
+    const ia = f.eval_classificacao;
+    const u = f.assertiva;
+    return (u === true && ia === 'ASSERTIVA') || (u === false && ia === 'NAO_ASSERTIVA');
+  }).length;
+  const pctConcord = total ? Math.round((concordancia/total)*100) : 0;
+  document.getElementById('feedback-resumo-kpis').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 4px;">
+      <div style="background:#f0f9ff;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:800;color:#1a56db;">${notaMedia}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">Nota média (1–5)</div>
+      </div>
+      <div style="background:#f0fdf4;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:800;color:#16a34a;">${pctSim}%</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">Consideraram assertiva</div>
+      </div>
+      <div style="background:#fefce8;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:800;color:#ca8a04;">${pctConcord}%</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">Concordância IA vs usuário</div>
+      </div>
+      <div style="background:#f5f3ff;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:800;color:#7c3aed;">${total}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">Total de feedbacks</div>
+      </div>
+    </div>
+  `;
 }
 
 // ============================================================

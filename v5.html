@@ -710,6 +710,89 @@
     .msg-row.user .msg-time { text-align: right; }
     .msg-row.maria .msg-time { text-align: left; }
 
+    /* ===== FEEDBACK WIDGET ===== */
+    .feedback-widget {
+      margin-top: 10px;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 340px;
+    }
+    .feedback-widget.done {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+    .feedback-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .feedback-assertiva {
+      display: flex;
+      gap: 6px;
+    }
+    .feedback-btn-ass {
+      flex: 1;
+      padding: 5px 0;
+      border-radius: 7px;
+      border: 1.5px solid #d1d5db;
+      background: white;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .feedback-btn-ass:hover { border-color: #1a56db; color: #1a56db; }
+    .feedback-btn-ass.sel-sim { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
+    .feedback-btn-ass.sel-nao { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
+    .feedback-notas {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .feedback-nota-label {
+      font-size: 11px;
+      color: #6b7280;
+      margin-right: 2px;
+    }
+    .feedback-btn-nota {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1.5px solid #d1d5db;
+      background: white;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #374151;
+    }
+    .feedback-btn-nota:hover { border-color: #1a56db; color: #1a56db; background: #eff6ff; }
+    .feedback-btn-nota.sel { background: #1a56db; border-color: #1a56db; color: white; }
+    .feedback-enviar {
+      align-self: flex-start;
+      padding: 5px 14px;
+      background: #1a56db;
+      color: white;
+      border: none;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .feedback-enviar:hover { background: #1e40af; }
+    .feedback-enviar:disabled { background: #93c5fd; cursor: not-allowed; }
+    .feedback-done-msg {
+      font-size: 12px;
+      color: #16a34a;
+      font-weight: 600;
+    }
+
     .chat-input-bar {
       background: white;
       border-top: 1px solid #e5e7eb;
@@ -1410,6 +1493,11 @@
     if (t) t.remove();
   }
 
+  // ── Feedback state ──────────────────────────────────────────────────────────
+  let _fbMsgTs = null;   // timestamp da última resposta (para vincular ao eval)
+  let _fbEvalScore = null;
+  let _fbEvalClass = null;
+
   function adicionarMensagemMarIA(data) {
     const resposta = data.resposta || '';
     const meta = data.metadados || {};
@@ -1430,6 +1518,12 @@
     if (meta.zendesk_utilizados !== undefined) metaTexto += '📚 Zendesk: ' + meta.zendesk_utilizados + '  ';
     if (meta.tokens_usados) metaTexto += '⚡ ' + meta.tokens_usados + ' tokens  ·  ';
 
+    _fbMsgTs = new Date().toISOString();
+    _fbEvalScore = meta.eval_score || null;
+    _fbEvalClass = meta.eval_classificacao || null;
+
+    const widgetId = 'fb-' + Date.now();
+
     const row = document.createElement('div');
     row.className = 'msg-row maria';
     row.innerHTML =
@@ -1437,9 +1531,82 @@
       '<div>' +
         '<div class="msg-bubble">' + conteudo + '</div>' +
         '<div class="msg-time">' + metaTexto + horaAtual() + '</div>' +
+        criarFeedbackWidget(widgetId) +
       '</div>';
     document.getElementById('chatMessages').appendChild(row);
     scrollChat();
+  }
+
+  function criarFeedbackWidget(id) {
+    return (
+      '<div class="feedback-widget" id="' + id + '">' +
+        '<div class="feedback-label">Esta resposta foi assertiva?</div>' +
+        '<div class="feedback-assertiva">' +
+          '<button class="feedback-btn-ass" onclick="selecionarAssertiva(\'' + id + '\', true)">✅ Sim</button>' +
+          '<button class="feedback-btn-ass" onclick="selecionarAssertiva(\'' + id + '\', false)">❌ Não</button>' +
+        '</div>' +
+        '<div class="feedback-notas">' +
+          '<span class="feedback-nota-label">Nota:</span>' +
+          [1,2,3,4,5].map(n =>
+            '<button class="feedback-btn-nota" onclick="selecionarNota(\'' + id + '\',' + n + ')">' + n + '</button>'
+          ).join('') +
+        '</div>' +
+        '<button class="feedback-enviar" onclick="enviarFeedback(\'' + id + '\')" disabled>Enviar</button>' +
+      '</div>'
+    );
+  }
+
+  function selecionarAssertiva(id, valor) {
+    const w = document.getElementById(id);
+    if (!w || w.classList.contains('done')) return;
+    w.querySelectorAll('.feedback-btn-ass').forEach(b => b.classList.remove('sel-sim','sel-nao'));
+    const btns = w.querySelectorAll('.feedback-btn-ass');
+    btns[valor ? 0 : 1].classList.add(valor ? 'sel-sim' : 'sel-nao');
+    w.dataset.assertiva = valor ? 'true' : 'false';
+    _atualizarBtnEnviar(w);
+  }
+
+  function selecionarNota(id, nota) {
+    const w = document.getElementById(id);
+    if (!w || w.classList.contains('done')) return;
+    w.querySelectorAll('.feedback-btn-nota').forEach(b => b.classList.remove('sel'));
+    w.querySelectorAll('.feedback-btn-nota')[nota - 1].classList.add('sel');
+    w.dataset.nota = nota;
+    _atualizarBtnEnviar(w);
+  }
+
+  function _atualizarBtnEnviar(w) {
+    const btn = w.querySelector('.feedback-enviar');
+    btn.disabled = !(w.dataset.assertiva !== undefined && w.dataset.nota);
+  }
+
+  async function enviarFeedback(id) {
+    const w = document.getElementById(id);
+    if (!w || w.classList.contains('done')) return;
+    const btn = w.querySelector('.feedback-enviar');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    try {
+      await fetch(WEBHOOK_V5, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'feedback',
+          versao: 'V5',
+          ticket_id: chatSessionId,
+          nota: Number(w.dataset.nota),
+          assertiva: w.dataset.assertiva === 'true',
+          msg_timestamp: _fbMsgTs,
+          eval_score: _fbEvalScore,
+          eval_classificacao: _fbEvalClass
+        })
+      });
+      w.classList.add('done');
+      w.innerHTML = '<div class="feedback-done-msg">✅ Obrigado pelo feedback!</div>';
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Enviar';
+    }
   }
 
   function scrollChat() {
