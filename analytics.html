@@ -918,7 +918,8 @@
                 <th>Versão</th>
                 <th>Pergunta</th>
                 <th>Categoria</th>
-                <th>Score</th>
+                <th>Score IA</th>
+                <th>Nota Usuário</th>
                 <th>Classificação</th>
                 <th>Erro</th>
                 <th>Motivo</th>
@@ -1774,9 +1775,38 @@ function renderInteracoes() {
   const tbody = document.getElementById('interacoes-body');
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:24px;">Nenhuma interação encontrada.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#9ca3af;padding:24px;">Nenhuma interação encontrada.</td></tr>';
     return;
   }
+
+  // Build feedback lookup: ticket_id → list of {nota, msg_timestamp}
+  // Match each eval to the feedback with same ticket_id whose msg_timestamp is closest (within 60s before eval.timestamp)
+  const fbByTicket = {};
+  feedbackData.forEach(f => {
+    const tid = f.ticket_id || '';
+    if (!fbByTicket[tid]) fbByTicket[tid] = [];
+    fbByTicket[tid].push(f);
+  });
+
+  function findNota(e) {
+    const list = fbByTicket[e.ticket_id || ''];
+    if (!list || list.length === 0) return null;
+    const evalTs = new Date(e.timestamp).getTime();
+    // Find closest feedback whose msg_timestamp is within 90s before eval.timestamp
+    let best = null, bestDiff = Infinity;
+    list.forEach(f => {
+      const fTs = new Date(f.msg_timestamp || f.timestamp).getTime();
+      const diff = evalTs - fTs;
+      if (diff >= -5000 && diff < 90000 && diff < bestDiff) {
+        bestDiff = diff;
+        best = f;
+      }
+    });
+    return best ? Number(best.nota) : null;
+  }
+
+  const notaColors = ['','#ef4444','#f97316','#f59e0b','#84cc16','#10b981'];
+  const notaLabels = ['','★','★★','★★★','★★★★','★★★★★'];
 
   tbody.innerHTML = filtered.map(e => {
     const cls = e.classificacao || 'PARCIAL';
@@ -1786,12 +1816,18 @@ function renderInteracoes() {
     const ver = (e.versao || 'V?');
     const verColor = ver === 'V3' ? '#7c3aed' : '#1a56db';
 
+    const nota = findNota(e);
+    const notaCell = nota !== null
+      ? `<span style="font-weight:700;color:${notaColors[nota]};" title="Nota ${nota}/5">${nota} ${notaLabels[nota]}</span>`
+      : `<span style="color:#d1d5db;font-size:11px;">—</span>`;
+
     return `<tr>
       <td style="white-space:nowrap;font-size:12px;color:#6b7280;">${formatTS(e.timestamp)}</td>
       <td><span style="font-size:11px;font-weight:700;color:${verColor};background:${verColor}1a;padding:2px 7px;border-radius:4px;">${ver}</span></td>
       <td style="max-width:220px;font-size:12px;" title="${(e.pergunta||'').replace(/"/g,'&quot;')}">${truncate(e.pergunta || '—', 60)}</td>
       <td><span style="font-size:12px;font-weight:600;">${e.categoria || 'OUTROS'}</span></td>
       <td style="font-weight:700;color:${scoreColor};">${score.toFixed(2)}</td>
+      <td style="text-align:center;">${notaCell}</td>
       <td><span class="badge ${badgeClass}">${cls.replace('NAO_ASSERTIVA', 'NÃO ASSERTIVA')}</span></td>
       <td style="font-size:12px;color:#6b7280;">${e.erro_detectado || 'nenhum'}</td>
       <td style="max-width:200px;font-size:12px;color:#374151;" title="${(e.motivo||'').replace(/"/g,'&quot;')}">${truncate(e.motivo || '—', 70)}</td>
