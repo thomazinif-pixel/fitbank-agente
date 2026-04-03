@@ -515,14 +515,19 @@ function setPeriod(btn) {
   }
   customDates.style.display = 'none';
   const now = new Date();
-  const daysMap = { today: 0, '7d': 7, '30d': 30, '60d': 60, '90d': 90, all: null };
-  const days = daysMap[period];
-  if (days === null) {
+
+  if (period === 'today') {
+    // "Hoje" = últimas 24h via timestamp ISO (evita problema de fuso do Zendesk com datas puras)
+    const from24h = new Date(Date.now() - 86400000);
+    document.getElementById('f-from').value = from24h.toISOString().slice(0, 19) + 'Z';
+    document.getElementById('f-to').value   = now.toISOString().slice(0, 19) + 'Z';
+  } else if (period === 'all') {
     document.getElementById('f-from').value = '';
     document.getElementById('f-to').value = '';
   } else {
+    const daysMap = { '7d': 7, '30d': 30, '60d': 60, '90d': 90 };
     const from = new Date(now);
-    from.setDate(from.getDate() - days);
+    from.setDate(from.getDate() - daysMap[period]);
     document.getElementById('f-from').value = from.toISOString().slice(0, 10);
     document.getElementById('f-to').value = now.toISOString().slice(0, 10);
   }
@@ -549,12 +554,22 @@ function getFiltros() {
   const top25Active = document.getElementById('top25-btn')?.classList.contains('active');
   const activePriority = document.querySelector('.date-btn[data-priority].active');
   return {
-    dateFrom: document.getElementById('f-from')?.value || '',
-    dateTo:   document.getElementById('f-to')?.value   || '',
-    top25:    top25Active ? 'true' : '',
-    priority: activePriority?.dataset.priority || '',
-    client:   document.getElementById('f-client')?.value || '',
+    dateFrom:        document.getElementById('f-from')?.value || '',
+    dateTo:          document.getElementById('f-to')?.value   || '',
+    top25:           top25Active ? 'true' : '',
+    // priority é aplicado localmente no frontend (Zendesk não usa priority nos tickets abertos desta conta)
+    priorityFilter:  activePriority?.dataset.priority || '',
+    client:          document.getElementById('f-client')?.value || '',
   };
+}
+
+// Mapeia prioridade selecionada para as cores de risco (heatmap e clientes)
+function getPriorityColors(priority) {
+  if (!priority) return null; // sem filtro = mostra tudo
+  if (priority === 'urgent') return ['red'];
+  if (priority === 'high')   return ['orange', 'yellow'];
+  if (priority === 'normal') return ['green'];
+  return null;
 }
 
 function aplicarFiltros() {
@@ -579,20 +594,29 @@ async function carregarDashboard() {
   const token = sessionStorage.getItem('dashboardToken');
   const filtros = getFiltros();
 
-  document.getElementById('last-update').textContent = 'Atualizando...';
+  // Indica loading visualmente
+  document.getElementById('last-update').textContent = '⟳ Atualizando...';
+  document.getElementById('kpi-grid').style.opacity = '0.4';
+  document.getElementById('heatmap-body').style.opacity = '0.4';
 
   const headers = { 'Authorization': `Bearer ${token}` };
-  const qs = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([,v]) => v))).toString();
+
+  // Monta query string SEM priorityFilter e client (aplicados localmente)
+  const { priorityFilter, client, ...backendFiltros } = filtros;
+  const qs = new URLSearchParams(Object.fromEntries(Object.entries(backendFiltros).filter(([,v]) => v))).toString();
 
   // Load in parallel
   const [kpisResult, heatmapResult, clientsResult, bottlenecksResult, insightsResult] =
     await Promise.allSettled([
-      fetch(`${ENDPOINTS.kpis}?${qs}`, { headers }).then(r => r.json()).catch(() => null),
-      fetch(`${ENDPOINTS.heatmap}?${qs}`, { headers }).then(r => r.json()).catch(() => null),
-      fetch(`${ENDPOINTS.clients}?${qs}`, { headers }).then(r => r.json()).catch(() => null),
-      fetch(`${ENDPOINTS.bottlenecks}?${qs}`, { headers }).then(r => r.json()).catch(() => null),
+      fetch(`${ENDPOINTS.kpis}${qs ? '?' + qs : ''}`, { headers }).then(r => r.json()).catch(() => null),
+      fetch(`${ENDPOINTS.heatmap}${qs ? '?' + qs : ''}`, { headers }).then(r => r.json()).catch(() => null),
+      fetch(`${ENDPOINTS.clients}${qs ? '?' + qs : ''}`, { headers }).then(r => r.json()).catch(() => null),
+      fetch(`${ENDPOINTS.bottlenecks}${qs ? '?' + qs : ''}`, { headers }).then(r => r.json()).catch(() => null),
       fetch(`${ENDPOINTS.insights}`, { headers }).then(r => r.json()).catch(() => null),
     ]);
+
+  document.getElementById('kpi-grid').style.opacity = '1';
+  document.getElementById('heatmap-body').style.opacity = '1';
 
   const kpis        = kpisResult.value;
   const heatmap     = heatmapResult.value;
@@ -601,8 +625,8 @@ async function carregarDashboard() {
   const insights    = insightsResult.value;
 
   if (kpis)        renderKPICards(kpis);
-  if (heatmap)     renderHeatmap(heatmap);
-  if (clients)     { renderTopClients(clients); renderAlerts(clients); }
+  if (heatmap)     renderHeatmap(heatmap, priorityFilter);
+  if (clients)     { renderTopClients(clients, priorityFilter); renderAlerts(clients, priorityFilter); }
   if (bottlenecks) renderBottlenecks(bottlenecks);
   if (insights)    renderInsights(insights);
 
@@ -636,11 +660,16 @@ function renderKPICards(data) {
 // ============================================================
 // HEATMAP
 // ============================================================
-function renderHeatmap(data) {
-  const rows = data.rows || [];
+function renderHeatmap(data, priorityFilter) {
+  let rows = data.rows || [];
+
+  // Filtro local por prioridade/urgência (cor do grupo)
+  const priorityCols = getPriorityColors(priorityFilter);
+  if (priorityCols) rows = rows.filter(r => priorityCols.includes(r.color));
+
   if (!rows.length) {
     document.getElementById('heatmap-body').innerHTML =
-      '<tr><td colspan="8" class="py-8 text-center text-slate-500">Sem dados de heatmap</td></tr>';
+      `<tr><td colspan="8" class="py-8 text-center text-slate-500">${priorityFilter ? 'Nenhum grupo com este nível de prioridade' : 'Sem dados de heatmap'}</td></tr>`;
     return;
   }
 
@@ -712,10 +741,13 @@ function renderTimeSeries(kpis) {
 // ============================================================
 // TOP CLIENTS
 // ============================================================
-function renderTopClients(data) {
+function renderTopClients(data, priorityFilter) {
   const clientFilter = document.getElementById('f-client')?.value?.toLowerCase() || '';
   let clients = data.clients || [];
   if (clientFilter) clients = clients.filter(c => c.name.toLowerCase().includes(clientFilter));
+  // Filtro local por prioridade/urgência
+  const priorityCols = getPriorityColors(priorityFilter);
+  if (priorityCols) clients = clients.filter(c => priorityCols.includes(c.riskColor));
   clients = clients.slice(0, 10);
   if (!clients.length) {
     document.getElementById('clients-body').innerHTML =
@@ -742,8 +774,12 @@ function renderTopClients(data) {
 // ============================================================
 // ALERTS (derived from clients data)
 // ============================================================
-function renderAlerts(data) {
-  const alerts = (data.clients || []).filter(c => c.riskColor === 'red' || c.riskColor === 'orange').slice(0, 5);
+function renderAlerts(data, priorityFilter) {
+  const priorityCols = getPriorityColors(priorityFilter);
+  const baseClients = priorityCols
+    ? (data.clients || []).filter(c => priorityCols.includes(c.riskColor))
+    : data.clients || [];
+  const alerts = baseClients.filter(c => c.riskColor === 'red' || c.riskColor === 'orange').slice(0, 5);
   const el = document.getElementById('alerts-list');
   if (!alerts.length) {
     el.innerHTML = '<div class="text-slate-500 text-sm py-4 text-center">Nenhum alerta crítico</div>';
