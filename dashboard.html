@@ -31,6 +31,28 @@
     .tab-btn.active { background:#6366f1; color:#fff; }
     .tab-btn:not(.active):hover { background:#1e2235; color:#e2e8f0; }
     .devops-insight-item { border-left:3px solid #6366f1; background:rgba(99,102,241,0.06); border-radius:0 8px 8px 0; padding:12px 16px; }
+    /* ---- Filter Layers ---- */
+    .filter-layers { display:flex; flex-direction:column; gap:10px; }
+    .filter-layer { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+    .filter-label { color:#64748b; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; min-width:62px; }
+    .date-btn { background:#1e2235; border:1px solid #2a2d3a; color:#94a3b8; border-radius:20px; padding:4px 14px; font-size:13px; cursor:pointer; transition:all .15s; white-space:nowrap; }
+    .date-btn:hover { border-color:#6366f1; color:#c7d2fe; }
+    .date-btn.active { background:#6366f1; border-color:#6366f1; color:#fff; font-weight:600; }
+    .custom-dates { display:none; align-items:center; gap:6px; flex-wrap:wrap; }
+    .custom-dates input { background:#1e2235; border:1px solid #2a2d3a; color:#e2e8f0; border-radius:8px; padding:4px 10px; font-size:13px; }
+    .custom-dates input:focus { outline:none; border-color:#6366f1; }
+    .custom-dates span { color:#64748b; font-size:12px; }
+    .custom-dates button { background:#6366f1; border:none; color:#fff; border-radius:8px; padding:4px 14px; font-size:13px; cursor:pointer; }
+    .custom-dates button:hover { background:#818cf8; }
+    .biz-filters { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+    .client-search-wrap { position:relative; display:flex; align-items:center; }
+    .client-search-wrap .search-icon { position:absolute; left:9px; font-size:13px; pointer-events:none; }
+    .client-search-wrap input { padding-left:28px; background:#1e2235; border:1px solid #2a2d3a; color:#e2e8f0; border-radius:20px; padding-top:4px; padding-bottom:4px; font-size:13px; width:180px; }
+    .client-search-wrap input:focus { outline:none; border-color:#6366f1; }
+    .top25-btn { background:#1e2235; border:1px solid #2a2d3a; color:#94a3b8; border-radius:20px; padding:4px 14px; font-size:13px; cursor:pointer; transition:all .15s; white-space:nowrap; }
+    .top25-btn:hover { border-color:#f59e0b; color:#fde68a; }
+    .top25-btn.active { background:#f59e0b; border-color:#f59e0b; color:#000; font-weight:600; }
+    .priority-group { display:flex; gap:4px; }
   </style>
 </head>
 <body class="text-slate-200 min-h-screen">
@@ -80,28 +102,45 @@
 
     <!-- FILTROS -->
     <div class="card px-5 py-4">
-      <div class="flex flex-wrap items-center gap-3">
-        <span class="text-slate-400 text-sm font-medium">Filtros:</span>
-        <div class="flex items-center gap-2">
-          <label class="text-slate-500 text-xs">De</label>
-          <input type="date" id="f-from" class="text-sm" />
+      <div class="filter-layers">
+
+        <!-- LAYER 1: Período -->
+        <div class="filter-layer">
+          <span class="filter-label">Período</span>
+          <button class="date-btn" data-period="today"  onclick="setPeriod(this)">Hoje</button>
+          <button class="date-btn active" data-period="7d" onclick="setPeriod(this)">7 dias</button>
+          <button class="date-btn" data-period="30d"   onclick="setPeriod(this)">30 dias</button>
+          <button class="date-btn" data-period="60d"   onclick="setPeriod(this)">60 dias</button>
+          <button class="date-btn" data-period="90d"   onclick="setPeriod(this)">90 dias</button>
+          <button class="date-btn" data-period="all"   onclick="setPeriod(this)">Todos</button>
+          <button class="date-btn" data-period="custom" onclick="setPeriod(this)">Personalizado</button>
+          <div class="custom-dates" id="custom-dates">
+            <input type="date" id="f-from" />
+            <span>até</span>
+            <input type="date" id="f-to" />
+            <button onclick="aplicarFiltros()">Aplicar</button>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <label class="text-slate-500 text-xs">Até</label>
-          <input type="date" id="f-to" class="text-sm" />
+
+        <!-- LAYER 2: Negócios -->
+        <div class="filter-layer">
+          <span class="filter-label">Negócios</span>
+          <div class="biz-filters">
+            <div class="client-search-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="f-client" placeholder="Buscar cliente..." oninput="aplicarFiltros()" />
+            </div>
+            <button class="top25-btn" id="top25-btn" onclick="toggleTop25(this)">⭐ Top 25 Clientes</button>
+            <div class="priority-group">
+              <button class="date-btn active" data-priority="" onclick="setPriority(this)">Todas</button>
+              <button class="date-btn" data-priority="urgent" onclick="setPriority(this)">🔴 Urgente</button>
+              <button class="date-btn" data-priority="high"   onclick="setPriority(this)">🟠 Alto</button>
+              <button class="date-btn" data-priority="normal" onclick="setPriority(this)">🟢 Normal</button>
+            </div>
+            <button onclick="limparFiltros()" class="text-slate-500 hover:text-white text-xs px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors">✕ Limpar</button>
+          </div>
         </div>
-        <select id="f-top25" class="text-sm">
-          <option value="">Todos os clientes</option>
-          <option value="true">Top 25 apenas</option>
-        </select>
-        <select id="f-priority" class="text-sm">
-          <option value="">Todas prioridades</option>
-          <option value="urgent">Urgente</option>
-          <option value="high">Alto</option>
-          <option value="normal">Normal</option>
-        </select>
-        <button onclick="aplicarFiltros()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-1.5 rounded-lg transition-colors">Aplicar</button>
-        <button onclick="limparFiltros()" class="text-slate-400 hover:text-white text-sm px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors">Limpar</button>
+
       </div>
     </div>
 
@@ -373,6 +412,7 @@ const ENDPOINTS = {
 
 let ticketsChart = null;
 let debounceTimer = null;
+let refreshInterval = null;
 // DevOps N2 charts (lazy-init)
 let dvOrigemChart = null, dvMensalChart = null, dvClientesChart = null;
 let dvServicosChart = null, dvCausasChart = null, dvOutcomesChart = null;
@@ -402,6 +442,16 @@ function mostrarDashboard() {
   document.getElementById('user-badge').textContent = `${user} (${role})`;
   initFiltros();
   carregarDashboard();
+  iniciarAutoRefresh();
+}
+
+function iniciarAutoRefresh() {
+  if (refreshInterval) clearInterval(refreshInterval);
+  refreshInterval = setInterval(() => {
+    carregarDashboard();
+    const dvPanel = document.getElementById('panel-devops');
+    if (dvPanel && !dvPanel.classList.contains('hidden')) carregarDevOps();
+  }, 3600000); // 1 hora
 }
 
 async function fazerLogin() {
@@ -446,6 +496,7 @@ async function fazerLogin() {
 }
 
 function fazerLogout() {
+  if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
   sessionStorage.clear();
   mostrarLogin();
 }
@@ -453,20 +504,56 @@ function fazerLogout() {
 // ============================================================
 // FILTROS
 // ============================================================
-function initFiltros() {
+function setPeriod(btn) {
+  document.querySelectorAll('.date-btn[data-period]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const period = btn.dataset.period;
+  const customDates = document.getElementById('custom-dates');
+  if (period === 'custom') {
+    customDates.style.display = 'flex';
+    return; // aguarda botão Aplicar
+  }
+  customDates.style.display = 'none';
   const now = new Date();
-  const from = new Date(now);
-  from.setDate(from.getDate() - 7);
-  document.getElementById('f-from').value = from.toISOString().slice(0,10);
-  document.getElementById('f-to').value = now.toISOString().slice(0,10);
+  const daysMap = { today: 0, '7d': 7, '30d': 30, '60d': 60, '90d': 90, all: null };
+  const days = daysMap[period];
+  if (days === null) {
+    document.getElementById('f-from').value = '';
+    document.getElementById('f-to').value = '';
+  } else {
+    const from = new Date(now);
+    from.setDate(from.getDate() - days);
+    document.getElementById('f-from').value = from.toISOString().slice(0, 10);
+    document.getElementById('f-to').value = now.toISOString().slice(0, 10);
+  }
+  aplicarFiltros();
+}
+
+function toggleTop25(btn) {
+  btn.classList.toggle('active');
+  aplicarFiltros();
+}
+
+function setPriority(btn) {
+  document.querySelectorAll('.date-btn[data-priority]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  aplicarFiltros();
+}
+
+function initFiltros() {
+  const btn7d = document.querySelector('.date-btn[data-period="7d"]');
+  if (btn7d) setPeriod(btn7d);
 }
 
 function getFiltros() {
+  const top25Active = document.getElementById('top25-btn')?.classList.contains('active');
+  const activePriority = document.querySelector('.date-btn[data-priority].active');
   return {
-    dateFrom: document.getElementById('f-from').value,
-    dateTo:   document.getElementById('f-to').value,
-    top25:    document.getElementById('f-top25').value,
-    priority: document.getElementById('f-priority').value,
+    dateFrom: document.getElementById('f-from')?.value || '',
+    dateTo:   document.getElementById('f-to')?.value   || '',
+    top25:    top25Active ? 'true' : '',
+    priority: activePriority?.dataset.priority || '',
+    client:   document.getElementById('f-client')?.value || '',
   };
 }
 
@@ -476,10 +563,13 @@ function aplicarFiltros() {
 }
 
 function limparFiltros() {
-  initFiltros();
-  document.getElementById('f-top25').value = '';
-  document.getElementById('f-priority').value = '';
-  carregarDashboard();
+  document.getElementById('f-client').value = '';
+  document.getElementById('top25-btn')?.classList.remove('active');
+  document.querySelectorAll('.date-btn[data-priority]').forEach(b => b.classList.remove('active'));
+  document.querySelector('.date-btn[data-priority=""]')?.classList.add('active');
+  document.getElementById('custom-dates').style.display = 'none';
+  const btn7d = document.querySelector('.date-btn[data-period="7d"]');
+  if (btn7d) setPeriod(btn7d);
 }
 
 // ============================================================
@@ -623,7 +713,10 @@ function renderTimeSeries(kpis) {
 // TOP CLIENTS
 // ============================================================
 function renderTopClients(data) {
-  const clients = (data.clients || []).slice(0, 10);
+  const clientFilter = document.getElementById('f-client')?.value?.toLowerCase() || '';
+  let clients = data.clients || [];
+  if (clientFilter) clients = clients.filter(c => c.name.toLowerCase().includes(clientFilter));
+  clients = clients.slice(0, 10);
   if (!clients.length) {
     document.getElementById('clients-body').innerHTML =
       '<tr><td colspan="5" class="py-8 text-center text-slate-500">Sem dados de clientes</td></tr>';
@@ -766,7 +859,14 @@ function switchTab(tab) {
   document.getElementById('panel-devops').classList.toggle('hidden', isOps);
   document.getElementById('tab-ops').classList.toggle('active', isOps);
   document.getElementById('tab-devops').classList.toggle('active', !isOps);
-  if (!isOps && !dvOrigemChart) initDevOpsCharts();
+  if (!isOps) carregarDevOps();
+}
+
+function carregarDevOps() {
+  [dvOrigemChart, dvMensalChart, dvClientesChart, dvServicosChart, dvCausasChart, dvOutcomesChart]
+    .forEach(c => { if (c) c.destroy(); });
+  dvOrigemChart = dvMensalChart = dvClientesChart = dvServicosChart = dvCausasChart = dvOutcomesChart = null;
+  initDevOpsCharts();
 }
 
 // ============================================================
