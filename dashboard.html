@@ -53,6 +53,28 @@
     .top25-btn:hover { border-color:#f59e0b; color:#fde68a; }
     .top25-btn.active { background:#f59e0b; border-color:#f59e0b; color:#000; font-weight:600; }
     .priority-group { display:flex; gap:4px; }
+    /* Risk level badges V2 */
+    .badge-critical { background:#fecaca; color:#991b1b; font-weight:700; border-radius:6px; padding:2px 8px; font-size:11px; }
+    .badge-high     { background:#fed7aa; color:#9a3412; font-weight:700; border-radius:6px; padding:2px 8px; font-size:11px; }
+    .badge-medium   { background:#fef9c3; color:#713f12; font-weight:700; border-radius:6px; padding:2px 8px; font-size:11px; }
+    .badge-low      { background:#dcfce7; color:#14532d; font-weight:700; border-radius:6px; padding:2px 8px; font-size:11px; }
+    /* Risk driver tags */
+    .driver-tag { background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.3); border-radius:12px; padding:1px 8px; font-size:10px; margin:1px 2px; display:inline-block; }
+    /* Alert page sections */
+    .alert-section { background:#1a1d27; border:1px solid #2a2d3a; border-radius:12px; padding:20px; }
+    .alert-section-title { font-size:13px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:12px; }
+    .severity-banner { border-radius:10px; padding:14px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+    .severity-critical { background:rgba(220,38,38,0.15); border:1px solid rgba(220,38,38,0.4); }
+    .severity-high     { background:rgba(234,88,12,0.15); border:1px solid rgba(234,88,12,0.4); }
+    .severity-medium   { background:rgba(202,138,4,0.12); border:1px solid rgba(202,138,4,0.3); }
+    .severity-normal   { background:rgba(22,163,74,0.10); border:1px solid rgba(22,163,74,0.3); }
+    /* Group filter select */
+    select.filter-select { background:#1e2235; border:1px solid #2a2d3a; color:#e2e8f0; border-radius:20px; padding:4px 14px; font-size:13px; cursor:pointer; }
+    select.filter-select:focus { outline:none; border-color:#6366f1; }
+    @media print {
+      header, .card:first-child, .flex.items-center.gap-2, .tab-btn { display:none !important; }
+      #panel-alerts { display:block !important; }
+    }
   </style>
 </head>
 <body class="text-slate-200 min-h-screen">
@@ -137,6 +159,9 @@
               <button class="date-btn" data-priority="high"   onclick="setPriority(this)">🟠 Alto</button>
               <button class="date-btn" data-priority="normal" onclick="setPriority(this)">🟢 Normal</button>
             </div>
+            <select class="filter-select" id="f-group" onchange="aplicarFiltros()">
+              <option value="">Todos os grupos</option>
+            </select>
             <button onclick="limparFiltros()" class="text-slate-500 hover:text-white text-xs px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors">✕ Limpar</button>
           </div>
         </div>
@@ -148,13 +173,16 @@
     <div class="flex items-center gap-2 px-1">
       <button id="tab-ops" class="tab-btn active" onclick="switchTab('ops')">📊 Operacional</button>
       <button id="tab-devops" class="tab-btn" onclick="switchTab('devops')">🛠 DevOps N2 — Análise</button>
+      <button id="tab-alerts" class="tab-btn" onclick="switchTab('alerts')">🚨 Alerta Operacional</button>
+      <button onclick="window.print()" class="text-slate-500 hover:text-white text-xs px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors ml-auto">🖨 Imprimir</button>
     </div>
 
     <!-- PAINEL OPERACIONAL -->
     <div id="panel-ops">
 
     <!-- KPI CARDS -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="kpi-grid">
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-4" id="kpi-grid">
+      <div class="kpi-card p-5 rounded-xl skeleton h-24"></div>
       <div class="kpi-card p-5 rounded-xl skeleton h-24"></div>
       <div class="kpi-card p-5 rounded-xl skeleton h-24"></div>
       <div class="kpi-card p-5 rounded-xl skeleton h-24"></div>
@@ -209,14 +237,16 @@
             <thead>
               <tr class="text-slate-500 border-b border-slate-800">
                 <th class="text-left py-2 px-2 font-medium">Cliente</th>
-                <th class="py-2 px-2 font-medium text-center">7d</th>
-                <th class="py-2 px-2 font-medium text-center">Urgentes</th>
+                <th class="py-2 px-2 font-medium text-center">T.7d</th>
+                <th class="py-2 px-2 font-medium text-center">Urg</th>
                 <th class="py-2 px-2 font-medium text-center">Score</th>
+                <th class="py-2 px-2 font-medium text-center">Tier</th>
                 <th class="py-2 px-2 font-medium text-center">Risco</th>
+                <th class="py-2 px-2 font-medium text-left">Drivers</th>
               </tr>
             </thead>
             <tbody id="clients-body">
-              <tr><td colspan="5" class="py-8 text-center text-slate-500">Carregando...</td></tr>
+              <tr><td colspan="7" class="py-8 text-center text-slate-500">Carregando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -382,6 +412,121 @@
 
     </div><!-- /panel-devops -->
 
+    <!-- PAINEL ALERTAS OPERACIONAIS -->
+    <div id="panel-alerts" class="hidden space-y-4">
+
+      <!-- 1. Severity Banner -->
+      <div id="alert-severity-banner" class="severity-banner severity-normal">
+        <div>
+          <div class="text-white font-bold text-lg" id="alert-severity-label">NORMAL</div>
+          <div class="text-slate-400 text-xs" id="alert-severity-sub">Carregando dados...</div>
+        </div>
+        <div class="text-right">
+          <div class="text-slate-400 text-xs" id="alert-timestamp">—</div>
+          <div class="text-slate-500 text-xs mt-1">Jarvis Command Center</div>
+        </div>
+      </div>
+
+      <!-- 2. Visão Geral -->
+      <div class="alert-section">
+        <div class="alert-section-title">📊 Visão Geral</div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-500 border-b border-slate-800">
+                <th class="text-left py-2 px-3 font-medium">Métrica</th>
+                <th class="py-2 px-3 font-medium text-center">Valor</th>
+              </tr>
+            </thead>
+            <tbody id="alert-overview-body">
+              <tr><td colspan="2" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. Heatmap -->
+      <div class="alert-section">
+        <div class="alert-section-title">🔥 Heatmap Operacional — Grupo × Prioridade</div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-500 border-b border-slate-800">
+                <th class="text-left py-2 px-3 font-medium">Grupo</th>
+                <th class="py-2 px-3 font-medium text-center">🔴 Urgente</th>
+                <th class="py-2 px-3 font-medium text-center">🟠 Alto</th>
+                <th class="py-2 px-3 font-medium text-center">🟡 Normal</th>
+                <th class="py-2 px-3 font-medium text-center">⚪ Baixo</th>
+                <th class="py-2 px-3 font-medium text-center">✅ Resolvido</th>
+                <th class="py-2 px-3 font-medium text-center">Total</th>
+                <th class="py-2 px-3 font-medium text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody id="alert-heatmap-body">
+              <tr><td colspan="8" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 4. Tickets Críticos por Grupo -->
+      <div class="alert-section">
+        <div class="alert-section-title">⚠️ Tickets Críticos por Grupo</div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-500 border-b border-slate-800">
+                <th class="text-left py-2 px-3 font-medium">Grupo</th>
+                <th class="py-2 px-3 font-medium text-center">Status</th>
+                <th class="py-2 px-3 font-medium text-center">Pendentes</th>
+              </tr>
+            </thead>
+            <tbody id="alert-critical-body">
+              <tr><td colspan="3" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 5. Top 5 Gargalos -->
+      <div class="alert-section">
+        <div class="alert-section-title">🔧 Top 5 Gargalos</div>
+        <div id="alert-bottlenecks-list" class="space-y-3">
+          <div class="skeleton h-10 rounded-lg"></div>
+        </div>
+      </div>
+
+      <!-- 6. Clientes em Alerta -->
+      <div class="alert-section">
+        <div class="alert-section-title">🏢 Clientes em Alerta</div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-500 border-b border-slate-800">
+                <th class="text-left py-2 px-3 font-medium">Cliente</th>
+                <th class="py-2 px-3 font-medium text-center">Score</th>
+                <th class="py-2 px-3 font-medium text-center">T.7d</th>
+                <th class="py-2 px-3 font-medium text-center">Urgentes</th>
+                <th class="py-2 px-3 font-medium text-center">Nível</th>
+              </tr>
+            </thead>
+            <tbody id="alert-clients-body">
+              <tr><td colspan="5" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 7. Análise IA (Jarvis) -->
+      <div class="alert-section">
+        <div class="alert-section-title">🧠 Análise IA — Jarvis</div>
+        <div id="alert-insights-box" class="space-y-3">
+          <div class="skeleton h-10 rounded-lg"></div>
+        </div>
+      </div>
+
+    </div><!-- /panel-alerts -->
+
   </div>
 </div>
 
@@ -416,6 +561,9 @@ let refreshInterval = null;
 // DevOps N2 charts (lazy-init)
 let dvOrigemChart = null, dvMensalChart = null, dvClientesChart = null;
 let dvServicosChart = null, dvCausasChart = null, dvOutcomesChart = null;
+// Cache para aba Alertas
+let cachedKpis = null, cachedHeatmap = null, cachedClients = null;
+let cachedBottlenecks = null, cachedInsights = null;
 
 // ============================================================
 // AUTH
@@ -557,9 +705,11 @@ function getFiltros() {
     dateFrom:        document.getElementById('f-from')?.value || '',
     dateTo:          document.getElementById('f-to')?.value   || '',
     top25:           top25Active ? 'true' : '',
-    // priority é aplicado localmente no frontend (Zendesk não usa priority nos tickets abertos desta conta)
+    // priority e client são aplicados localmente no frontend
     priorityFilter:  activePriority?.dataset.priority || '',
     client:          document.getElementById('f-client')?.value || '',
+    // group é aplicado localmente (filtra heatmap sem ir ao n8n)
+    group:           document.getElementById('f-group')?.value || '',
   };
 }
 
@@ -601,8 +751,8 @@ async function carregarDashboard() {
 
   const headers = { 'Authorization': `Bearer ${token}` };
 
-  // Monta query string SEM priorityFilter e client (aplicados localmente)
-  const { priorityFilter, client, ...backendFiltros } = filtros;
+  // Monta query string SEM priorityFilter, client e group (aplicados localmente)
+  const { priorityFilter, client, group, ...backendFiltros } = filtros;
   const qs = new URLSearchParams(Object.fromEntries(Object.entries(backendFiltros).filter(([,v]) => v))).toString();
 
   // Load in parallel
@@ -624,13 +774,23 @@ async function carregarDashboard() {
   const bottlenecks = bottlenecksResult.value;
   const insights    = insightsResult.value;
 
+  // Salvar em cache para aba Alertas
+  if (kpis)        cachedKpis        = kpis;
+  if (heatmap)     cachedHeatmap     = heatmap;
+  if (clients)     cachedClients     = clients;
+  if (bottlenecks) cachedBottlenecks = bottlenecks;
+  if (insights)    cachedInsights    = insights;
+
   if (kpis)        renderKPICards(kpis);
-  if (heatmap)     renderHeatmap(heatmap, priorityFilter);
+  if (heatmap)     { renderHeatmap(heatmap, priorityFilter); populateGroupFilter(heatmap.rows || []); }
   if (clients)     { renderTopClients(clients, priorityFilter); renderAlerts(clients, priorityFilter); }
   if (bottlenecks) renderBottlenecks(bottlenecks);
   if (insights)    renderInsights(insights);
 
   renderTimeSeries(kpis);
+
+  // Se aba alertas estiver ativa, re-renderizar com novos dados
+  if (!document.getElementById('panel-alerts').classList.contains('hidden')) renderAlertPage();
 
   const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   document.getElementById('last-update').textContent = `Atualizado: ${now}`;
@@ -641,11 +801,12 @@ async function carregarDashboard() {
 // ============================================================
 function renderKPICards(data) {
   const cards = [
-    { label: 'Tickets Abertos', value: data.totalTickets || 0, icon: '🎫', color: 'text-blue-400' },
-    { label: 'Não Resolvidos',  value: data.totalTickets || 0, icon: '⏳', color: 'text-yellow-400' },
-    { label: 'Urgentes',        value: data.urgentTickets || 0, icon: '🚨', color: 'text-red-400' },
+    { label: 'Tickets Abertos',   value: data.totalTickets    || 0, icon: '🎫', color: 'text-blue-400' },
+    { label: 'Urgentes',          value: data.urgentTickets   || 0, icon: '🚨', color: 'text-red-400' },
     { label: 'Clientes Afetados', value: data.affectedClients || 0, icon: '🏢', color: 'text-purple-400' },
-    { label: 'Tickets 24h',     value: data.tickets24h || 0, icon: '📊', color: 'text-emerald-400' },
+    { label: 'Tickets 24h',       value: data.tickets24h      || 0, icon: '📊', color: 'text-emerald-400' },
+    { label: 'Resolvidos',        value: data.solvedTickets   || 0, icon: '✅', color: 'text-green-400' },
+    { label: 'Bugs Abertos',      value: data.openBugs        || 0, icon: '🐛', color: 'text-orange-400' },
   ];
 
   document.getElementById('kpi-grid').innerHTML = cards.map(c => `
@@ -666,6 +827,10 @@ function renderHeatmap(data, priorityFilter) {
   // Filtro local por prioridade/urgência (cor do grupo)
   const priorityCols = getPriorityColors(priorityFilter);
   if (priorityCols) rows = rows.filter(r => priorityCols.includes(r.color));
+
+  // Filtro local por grupo
+  const groupFilter = document.getElementById('f-group')?.value || '';
+  if (groupFilter) rows = rows.filter(r => r.groupName === groupFilter);
 
   if (!rows.length) {
     document.getElementById('heatmap-body').innerHTML =
@@ -741,6 +906,13 @@ function renderTimeSeries(kpis) {
 // ============================================================
 // TOP CLIENTS
 // ============================================================
+function getRiskBadge(riskScore, riskLabel) {
+  if (riskScore >= 81) return `<span class="badge-critical">${riskLabel || 'CRÍTICO'}</span>`;
+  if (riskScore >= 51) return `<span class="badge-high">${riskLabel || 'ALTO'}</span>`;
+  if (riskScore >= 21) return `<span class="badge-medium">${riskLabel || 'MÉDIO'}</span>`;
+  return `<span class="badge-low">${riskLabel || 'BAIXO'}</span>`;
+}
+
 function renderTopClients(data, priorityFilter) {
   const clientFilter = document.getElementById('f-client')?.value?.toLowerCase() || '';
   let clients = data.clients || [];
@@ -751,22 +923,23 @@ function renderTopClients(data, priorityFilter) {
   clients = clients.slice(0, 10);
   if (!clients.length) {
     document.getElementById('clients-body').innerHTML =
-      '<tr><td colspan="5" class="py-8 text-center text-slate-500">Sem dados de clientes</td></tr>';
+      '<tr><td colspan="7" class="py-8 text-center text-slate-500">Sem dados de clientes</td></tr>';
     return;
   }
 
   document.getElementById('clients-body').innerHTML = clients.map(c => {
-    const badge = c.riskColor === 'red'    ? `<span class="badge-red">${c.riskLabel}</span>` :
-                  c.riskColor === 'orange' ? `<span class="badge-red">${c.riskLabel}</span>` :
-                  c.riskColor === 'yellow' ? `<span class="badge-yellow">${c.riskLabel}</span>` :
-                                             `<span class="badge-green">${c.riskLabel}</span>`;
+    const badge = getRiskBadge(c.riskScore, c.riskLabel);
     const top25 = c.isTop25 ? '<span class="badge-gray ml-1">T25</span>' : '';
+    const tier = c.tier ? `<span class="badge-gray">${escHtml(c.tier)}</span>` : '—';
+    const drivers = (c.motivos || []).slice(0, 2).map(m => `<span class="driver-tag">${escHtml(m)}</span>`).join('');
     return `<tr class="border-b border-slate-800/50 cursor-pointer" onclick="abrirDetalheCliente('${escHtml(c.name)}')">
       <td class="py-2 px-2 font-medium text-slate-200 text-xs">${escHtml(c.name)}${top25}</td>
       <td class="py-2 px-2 text-center text-slate-300">${c.tickets7d}</td>
       <td class="py-2 px-2 text-center ${c.urgentOpen > 0 ? 'text-red-400 font-bold' : 'text-slate-500'}">${c.urgentOpen}</td>
       <td class="py-2 px-2 text-center font-semibold">${c.riskScore}</td>
+      <td class="py-2 px-2 text-center">${tier}</td>
       <td class="py-2 px-2 text-center">${badge}</td>
+      <td class="py-2 px-2">${drivers}</td>
     </tr>`;
   }).join('');
 }
@@ -890,12 +1063,12 @@ function escHtml(s) {
 // TABS
 // ============================================================
 function switchTab(tab) {
-  const isOps = tab === 'ops';
-  document.getElementById('panel-ops').classList.toggle('hidden', !isOps);
-  document.getElementById('panel-devops').classList.toggle('hidden', isOps);
-  document.getElementById('tab-ops').classList.toggle('active', isOps);
-  document.getElementById('tab-devops').classList.toggle('active', !isOps);
-  if (!isOps) carregarDevOps();
+  ['ops', 'devops', 'alerts'].forEach(t => {
+    document.getElementById(`panel-${t}`).classList.toggle('hidden', tab !== t);
+    document.getElementById(`tab-${t}`).classList.toggle('active', tab === t);
+  });
+  if (tab === 'devops') carregarDevOps();
+  if (tab === 'alerts') renderAlertPage();
 }
 
 function carregarDevOps() {
@@ -1035,6 +1208,185 @@ function initDevOpsCharts() {
       scales: SCALE
     }
   });
+}
+
+// ============================================================
+// GROUP FILTER
+// ============================================================
+function populateGroupFilter(rows) {
+  const sel = document.getElementById('f-group');
+  if (!sel) return;
+  const current = sel.value;
+  const groups = [...new Set(rows.map(r => r.groupName))].filter(Boolean).sort();
+  sel.innerHTML = '<option value="">Todos os grupos</option>' +
+    groups.map(g => `<option value="${escHtml(g)}"${g === current ? ' selected' : ''}>${escHtml(g)}</option>`).join('');
+}
+
+// ============================================================
+// ALERTA OPERACIONAL
+// ============================================================
+function calcSeverity(kpis, clients) {
+  const list = (clients && clients.clients) ? clients.clients : [];
+  const critical = list.filter(c => c.riskColor === 'red').length;
+  const high     = list.filter(c => c.riskColor === 'orange').length;
+  if (critical >= 3) return 'CRÍTICO';
+  if (critical >= 1 || high >= 5) return 'ALTO';
+  if ((kpis && kpis.totalTickets || 0) > 500 || high >= 2) return 'MÉDIO';
+  return 'NORMAL';
+}
+
+function renderAlertPage() {
+  const kpis        = cachedKpis;
+  const heatmap     = cachedHeatmap;
+  const clients     = cachedClients;
+  const bottlenecks = cachedBottlenecks;
+  const insights    = cachedInsights;
+  renderSeverityBanner(kpis, clients);
+  renderAlertOverview(kpis);
+  renderAlertHeatmap(heatmap);
+  renderAlertCriticalTickets(heatmap);
+  renderAlertBottlenecks(bottlenecks);
+  renderAlertClients(clients);
+  renderAlertInsights(insights);
+}
+
+function renderSeverityBanner(kpis, clients) {
+  const severity = calcSeverity(kpis, clients);
+  const clsMap = { 'CRÍTICO': 'severity-critical', 'ALTO': 'severity-high', 'MÉDIO': 'severity-medium', 'NORMAL': 'severity-normal' };
+  const banner = document.getElementById('alert-severity-banner');
+  banner.className = `severity-banner ${clsMap[severity] || 'severity-normal'}`;
+  document.getElementById('alert-severity-label').textContent = `⚡ JARVIS — Status: ${severity}`;
+  const list = (clients && clients.clients) ? clients.clients : [];
+  const critCount = list.filter(c => c.riskColor === 'red').length;
+  const highCount = list.filter(c => c.riskColor === 'orange').length;
+  document.getElementById('alert-severity-sub').textContent =
+    `${critCount} clientes críticos · ${highCount} em alerta · ${(kpis && kpis.totalTickets) || 0} tickets abertos`;
+  document.getElementById('alert-timestamp').textContent =
+    new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+}
+
+function renderAlertOverview(kpis) {
+  if (!kpis) {
+    document.getElementById('alert-overview-body').innerHTML =
+      '<tr><td colspan="2" class="py-4 text-center text-slate-500">Sem dados</td></tr>';
+    return;
+  }
+  const rows = [
+    ['Total de Tickets Abertos', kpis.totalTickets || 0],
+    ['Tickets Urgentes',         kpis.urgentTickets || 0],
+    ['Clientes Afetados',        kpis.affectedClients || 0],
+    ['Tickets Resolvidos',       kpis.solvedTickets || 0],
+    ['Tickets nas Últimas 24h',  kpis.tickets24h || 0],
+    ['Bugs Abertos',             kpis.openBugs || 0],
+  ];
+  document.getElementById('alert-overview-body').innerHTML = rows.map(([label, val]) =>
+    `<tr class="border-b border-slate-800/30">
+      <td class="py-2 px-3 text-slate-400">${label}</td>
+      <td class="py-2 px-3 text-center font-semibold text-white">${Number(val).toLocaleString('pt-BR')}</td>
+    </tr>`
+  ).join('');
+}
+
+function renderAlertHeatmap(heatmap) {
+  const rows = (heatmap && heatmap.rows) || [];
+  if (!rows.length) {
+    document.getElementById('alert-heatmap-body').innerHTML =
+      '<tr><td colspan="8" class="py-4 text-center text-slate-500">Sem dados de heatmap</td></tr>';
+    return;
+  }
+  document.getElementById('alert-heatmap-body').innerHTML = rows.map(r => {
+    const cls = r.color === 'red' ? 'heat-red' : r.color === 'yellow' ? 'heat-yellow' : 'heat-green';
+    const statusBadge = r.color === 'red'
+      ? '<span class="badge-red">CRÍTICO</span>'
+      : r.color === 'yellow'
+        ? '<span class="badge-yellow">ATENÇÃO</span>'
+        : '<span class="badge-green">NORMAL</span>';
+    return `<tr class="border-b border-slate-800/50">
+      <td class="py-2.5 px-3 font-medium text-slate-200">${escHtml(r.groupName)}</td>
+      <td class="py-2.5 px-3 text-center ${r.urgent > 0 ? cls : ''} font-bold">${r.urgent}</td>
+      <td class="py-2.5 px-3 text-center ${r.high > 0 && r.color !== 'red' ? 'heat-yellow' : ''}">${r.high}</td>
+      <td class="py-2.5 px-3 text-center text-slate-400">${r.normal}</td>
+      <td class="py-2.5 px-3 text-center text-slate-500">${r.low}</td>
+      <td class="py-2.5 px-3 text-center text-emerald-400">${r.solved}</td>
+      <td class="py-2.5 px-3 text-center font-semibold">${r.total}</td>
+      <td class="py-2.5 px-3 text-center">${statusBadge}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAlertCriticalTickets(heatmap) {
+  const rows = ((heatmap && heatmap.rows) || []).filter(r => r.color === 'red' || r.color === 'yellow');
+  if (!rows.length) {
+    document.getElementById('alert-critical-body').innerHTML =
+      '<tr><td colspan="3" class="py-4 text-center text-slate-500">Nenhum grupo crítico</td></tr>';
+    return;
+  }
+  document.getElementById('alert-critical-body').innerHTML = rows.map(r => {
+    const statusBadge = r.color === 'red'
+      ? '<span class="badge-red">CRÍTICO</span>'
+      : '<span class="badge-yellow">ATENÇÃO</span>';
+    return `<tr class="border-b border-slate-800/30">
+      <td class="py-2 px-3 text-slate-200 font-medium">${escHtml(r.groupName)}</td>
+      <td class="py-2 px-3 text-center">${statusBadge}</td>
+      <td class="py-2 px-3 text-center font-bold text-white">${r.urgent + r.high}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAlertBottlenecks(bottlenecks) {
+  const btns = (bottlenecks && bottlenecks.bottlenecks) || [];
+  const el = document.getElementById('alert-bottlenecks-list');
+  if (!btns.length) {
+    el.innerHTML = '<div class="text-slate-500 text-sm py-4 text-center">Sem dados de gargalos</div>';
+    return;
+  }
+  const colors = ['text-red-400', 'text-orange-400', 'text-yellow-400', 'text-blue-400', 'text-slate-400'];
+  el.innerHTML = btns.slice(0, 5).map((b, i) => `
+    <div class="flex items-center justify-between p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+      <div class="flex items-center gap-3">
+        <span class="${colors[i]} font-bold text-lg">${b.rank || i + 1}</span>
+        <div>
+          <div class="font-medium text-slate-200 text-sm">${escHtml(b.topic)}</div>
+          <div class="text-slate-500 text-xs">${(b.examples || []).slice(0, 1).join(', ')}</div>
+        </div>
+      </div>
+      <span class="font-bold text-white">${b.count || 0}</span>
+    </div>
+  `).join('');
+}
+
+function renderAlertClients(clients) {
+  const list = ((clients && clients.clients) || []).filter(c => c.riskColor === 'red' || c.riskColor === 'orange');
+  if (!list.length) {
+    document.getElementById('alert-clients-body').innerHTML =
+      '<tr><td colspan="5" class="py-4 text-center text-slate-500">Nenhum cliente em alerta</td></tr>';
+    return;
+  }
+  document.getElementById('alert-clients-body').innerHTML = list.slice(0, 10).map(c => {
+    const badge = getRiskBadge(c.riskScore, c.riskLabel);
+    return `<tr class="border-b border-slate-800/30">
+      <td class="py-2 px-3 font-medium text-slate-200 text-xs">${escHtml(c.name)}</td>
+      <td class="py-2 px-3 text-center font-semibold">${c.riskScore}</td>
+      <td class="py-2 px-3 text-center text-slate-300">${c.tickets7d}</td>
+      <td class="py-2 px-3 text-center ${c.urgentOpen > 0 ? 'text-red-400 font-bold' : 'text-slate-500'}">${c.urgentOpen}</td>
+      <td class="py-2 px-3 text-center">${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAlertInsights(insights) {
+  const list = (insights && insights.insights) || [];
+  const el = document.getElementById('alert-insights-box');
+  if (!list.length) {
+    el.innerHTML = '<div class="text-slate-500 text-sm py-4 text-center">Gerando insights...</div>';
+    return;
+  }
+  el.innerHTML = list.map((ins, i) => `
+    <div class="flex items-start gap-3 p-3 rounded-lg bg-indigo-950/20 border border-indigo-900/20">
+      <span class="text-indigo-400 text-lg mt-0.5">${i === 0 ? '💡' : i === 1 ? '📊' : i === 2 ? '⚡' : '🎯'}</span>
+      <p class="text-slate-300 text-sm leading-relaxed">${escHtml(ins)}</p>
+    </div>
+  `).join('');
 }
 
 // ============================================================
