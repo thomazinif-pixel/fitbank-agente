@@ -920,7 +920,7 @@ function renderTopClients(data, priorityFilter) {
   // Filtro local por prioridade/urgência
   const priorityCols = getPriorityColors(priorityFilter);
   if (priorityCols) clients = clients.filter(c => priorityCols.includes(c.riskColor));
-  clients = clients.slice(0, 10);
+  clients = clients.sort((a, b) => b.riskScore - a.riskScore).slice(0, 10);
   if (!clients.length) {
     document.getElementById('clients-body').innerHTML =
       '<tr><td colspan="7" class="py-8 text-center text-slate-500">Sem dados de clientes</td></tr>';
