@@ -96,6 +96,10 @@
     .action-done     { background:#dcfce7; color:#14532d; font-size:10px; border-radius:6px; padding:1px 7px; font-weight:700; }
     .action-progress { background:#dbeafe; color:#1e3a8a; font-size:10px; border-radius:6px; padding:1px 7px; font-weight:700; }
     .action-pending  { background:#f1f5f9; color:#475569; font-size:10px; border-radius:6px; padding:1px 7px; font-weight:700; }
+    /* Unknown Engine V4.1 */
+    .unknown-alert-banner { background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.4); border-radius:10px; padding:12px 18px; display:flex; align-items:center; gap:10px; }
+    .promote-badge { background:rgba(99,102,241,0.2); color:#a5b4fc; border-radius:4px; padding:1px 6px; font-size:10px; font-weight:700; }
+    .kpi-mini { background:#1a1d27; border:1px solid #2a2d3a; border-radius:10px; padding:14px 16px; }
   </style>
 </head>
 <body class="text-slate-200 min-h-screen">
@@ -816,6 +820,36 @@
         <div id="oms-recommendations" class="space-y-2">
           <div class="skeleton h-10 rounded-lg"></div>
         </div>
+      </div>
+
+      <!-- Unknown Problem Discovery Engine V4.1 -->
+      <div class="alert-section" id="oms-unknown-section" style="display:none">
+        <div class="alert-section-title">🔍 Descoberta de Problemas Desconhecidos</div>
+        <!-- Alert banner -->
+        <div id="oms-unknown-alert" class="unknown-alert-banner hidden mb-4">
+          <span class="text-yellow-400 text-lg">⚠️</span>
+          <span id="oms-unknown-alert-text" class="text-yellow-300 text-sm font-semibold"></span>
+        </div>
+        <!-- 4 KPI mini cards -->
+        <div id="oms-unknown-kpis" class="grid grid-cols-4 gap-3 mb-4"></div>
+        <!-- Unknown clusters table -->
+        <div class="overflow-x-auto mb-4">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-xs text-slate-500 border-b border-slate-700">
+                <th class="pb-2 pr-4">Keyword</th>
+                <th class="pb-2 pr-4">Nome sugerido pela IA</th>
+                <th class="pb-2 pr-4">Tickets</th>
+                <th class="pb-2 pr-4">Sistema</th>
+                <th class="pb-2 pr-4">Confiança</th>
+                <th class="pb-2">Promover?</th>
+              </tr>
+            </thead>
+            <tbody id="oms-unknown-clusters-body"></tbody>
+          </table>
+        </div>
+        <!-- AI Insight -->
+        <div id="oms-unknown-insight" class="hidden bg-slate-800 rounded-lg p-4 text-sm text-slate-300 italic border border-slate-600"></div>
       </div>
 
     </div><!-- /panel-oms -->
@@ -1712,6 +1746,66 @@ function renderOMSPage(data) {
           <span class="text-lg flex-shrink-0 mt-0.5">${icons[i] || '⚡'}</span>
           <span class="text-slate-200 text-sm leading-relaxed">${escHtml(r)}</span>
         </div>`).join('');
+    }
+  }
+
+  // Unknown Problem Discovery Engine V4.1
+  const unknownSection = document.getElementById('oms-unknown-section');
+  if (!unknownSection) return;
+  const unknownClusters = data.unknownClusters || [];
+  if (!unknownClusters.length) {
+    unknownSection.style.display = 'none';
+    return;
+  }
+  unknownSection.style.display = '';
+
+  // Alert banner
+  const alertBanner = document.getElementById('oms-unknown-alert');
+  if (data.unknownAlert) {
+    alertBanner.classList.remove('hidden');
+    document.getElementById('oms-unknown-alert-text').textContent =
+      `Taxa de tickets desconhecidos: ${data.unknownRate}% — acima do limite de 20%. Recomenda-se revisar os clusters.`;
+  } else {
+    alertBanner.classList.add('hidden');
+  }
+
+  // KPI mini cards
+  const kpiEl = document.getElementById('oms-unknown-kpis');
+  if (kpiEl) {
+    kpiEl.innerHTML = `
+      <div class="kpi-mini"><div class="text-2xl font-bold ${data.unknownAlert ? 'text-yellow-400' : 'text-slate-200'}">${data.unknownRate ?? 0}%</div><div class="text-xs text-slate-500 mt-1">Unknown Rate</div></div>
+      <div class="kpi-mini"><div class="text-2xl font-bold text-indigo-400">${data.reclassificationRate ?? 0}%</div><div class="text-xs text-slate-500 mt-1">Reclassificado</div></div>
+      <div class="kpi-mini"><div class="text-2xl font-bold text-emerald-400">${data.newProblemsDetected ?? 0}</div><div class="text-xs text-slate-500 mt-1">Novos Grupos</div></div>
+      <div class="kpi-mini"><div class="text-base font-bold text-slate-200 truncate">${escHtml(unknownClusters[0]?.newGroupName || unknownClusters[0]?.keyword || '—')}</div><div class="text-xs text-slate-500 mt-1">Top Cluster</div></div>`;
+  }
+
+  // Clusters table
+  const clustersBody = document.getElementById('oms-unknown-clusters-body');
+  if (clustersBody) {
+    clustersBody.innerHTML = unknownClusters.map(g => {
+      const confColor = g.confidence === 'HIGH' ? 'text-green-400' : g.confidence === 'MEDIUM' ? 'text-yellow-400' : 'text-slate-500';
+      const promoteBadge = g.shouldPromote
+        ? '<span class="promote-badge">PROMOVER</span>'
+        : '<span class="text-slate-600 text-xs">—</span>';
+      return `<tr class="border-b border-slate-800 hover:bg-slate-800/50">
+        <td class="py-2 pr-4 font-mono text-indigo-300 text-xs">"${escHtml(g.keyword)}"</td>
+        <td class="py-2 pr-4 text-slate-200 font-semibold">${escHtml(g.newGroupName || g.keyword)}</td>
+        <td class="py-2 pr-4 text-slate-300">${g.count}</td>
+        <td class="py-2 pr-4 text-slate-400 text-xs">${escHtml(g.system || '—')}</td>
+        <td class="py-2 pr-4"><span class="text-xs ${confColor}">${g.confidence || '—'}</span></td>
+        <td class="py-2">${promoteBadge}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // AI Insight
+  const insightEl = document.getElementById('oms-unknown-insight');
+  if (insightEl) {
+    if (data.unknownInsight) {
+      insightEl.classList.remove('hidden');
+      insightEl.textContent = data.unknownInsight;
+    } else {
+      insightEl.classList.add('hidden');
     }
   }
 }
