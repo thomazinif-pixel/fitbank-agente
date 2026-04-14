@@ -174,6 +174,7 @@
       <button id="tab-ops" class="tab-btn active" onclick="switchTab('ops')">📊 Operacional</button>
       <button id="tab-devops" class="tab-btn" onclick="switchTab('devops')">🛠 DevOps N2 — Análise</button>
       <button id="tab-alerts" class="tab-btn" onclick="switchTab('alerts')">🚨 Alerta Operacional</button>
+      <button id="tab-rootcause" class="tab-btn" onclick="switchTab('rootcause')">🧠 Root Cause</button>
       <button onclick="window.print()" class="text-slate-500 hover:text-white text-xs px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors ml-auto">🖨 Imprimir</button>
     </div>
 
@@ -527,6 +528,115 @@
 
     </div><!-- /panel-alerts -->
 
+    <!-- PAINEL ROOT CAUSE & PREDICTIVE V3 -->
+    <div id="panel-rootcause" class="hidden space-y-5">
+
+      <!-- 1. AI Executive Summary -->
+      <div class="alert-section">
+        <div class="alert-section-title">🧠 Diagnóstico IA — Resumo Executivo</div>
+        <div id="rc-ai-summary">
+          <div class="skeleton h-16 rounded-lg"></div>
+        </div>
+      </div>
+
+      <!-- 2. Top Problems Prioritized -->
+      <div class="alert-section">
+        <div class="alert-section-title">🔴 Top Problemas — Ranking de Prioridade</div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-500 border-b border-slate-800">
+                <th class="py-2 px-3 font-medium text-left">#</th>
+                <th class="py-2 px-3 font-medium text-left">Problema</th>
+                <th class="py-2 px-3 font-medium text-center">Score</th>
+                <th class="py-2 px-3 font-medium text-center">Tickets</th>
+                <th class="py-2 px-3 font-medium text-center">Clientes</th>
+                <th class="py-2 px-3 font-medium text-center">Tendência</th>
+                <th class="py-2 px-3 font-medium text-center">Risco</th>
+              </tr>
+            </thead>
+            <tbody id="rc-problems-body">
+              <tr><td colspan="7" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. Root Cause Table -->
+      <div class="alert-section">
+        <div class="alert-section-title">🔍 Análise de Causa Raiz</div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-slate-500 border-b border-slate-800">
+                <th class="py-2 px-3 font-medium text-left">Problema</th>
+                <th class="py-2 px-3 font-medium text-left">Causa Raiz Provável</th>
+                <th class="py-2 px-3 font-medium text-center">Sistema</th>
+                <th class="py-2 px-3 font-medium text-center">Confiança</th>
+              </tr>
+            </thead>
+            <tbody id="rc-rootcause-body">
+              <tr><td colspan="4" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 4. Correlation + Recurrence (2-col grid) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        <!-- Correlation Map -->
+        <div class="alert-section">
+          <div class="alert-section-title">🔗 Mapa de Correlação Zendesk × DevOps</div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-slate-500 border-b border-slate-800">
+                  <th class="py-2 px-2 font-medium text-left">Problema</th>
+                  <th class="py-2 px-2 font-medium text-center">Zendesk</th>
+                  <th class="py-2 px-2 font-medium text-center">DevOps</th>
+                  <th class="py-2 px-2 font-medium text-center">Correlação</th>
+                </tr>
+              </thead>
+              <tbody id="rc-correlation-body">
+                <tr><td colspan="4" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Recurrence Analysis -->
+        <div class="alert-section">
+          <div class="alert-section-title">🔁 Análise de Recorrência</div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-slate-500 border-b border-slate-800">
+                  <th class="py-2 px-2 font-medium text-left">Problema</th>
+                  <th class="py-2 px-2 font-medium text-center">Score</th>
+                  <th class="py-2 px-2 font-medium text-center">Trend</th>
+                  <th class="py-2 px-2 font-medium text-center">Risco</th>
+                </tr>
+              </thead>
+              <tbody id="rc-recurrence-body">
+                <tr><td colspan="4" class="py-4 text-center text-slate-500">Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 5. Recommended Actions -->
+      <div class="alert-section">
+        <div class="alert-section-title">⚠️ Ações Recomendadas — Maior Impacto</div>
+        <div id="rc-actions-list" class="space-y-2">
+          <div class="skeleton h-10 rounded-lg"></div>
+        </div>
+      </div>
+
+    </div><!-- /panel-rootcause -->
+
   </div>
 </div>
 
@@ -553,6 +663,7 @@ const ENDPOINTS = {
   clients:     `${N8N_BASE}/dashboard-clients`,
   bottlenecks: `${N8N_BASE}/dashboard-bottlenecks`,
   insights:    `${N8N_BASE}/dashboard-insights`,
+  rootcause:   `${N8N_BASE}/dashboard-root-cause`,
 };
 
 let ticketsChart = null;
@@ -564,6 +675,8 @@ let dvServicosChart = null, dvCausasChart = null, dvOutcomesChart = null;
 // Cache para aba Alertas
 let cachedKpis = null, cachedHeatmap = null, cachedClients = null;
 let cachedBottlenecks = null, cachedInsights = null;
+// Cache para aba Root Cause
+let cachedRootCause = null;
 
 // ============================================================
 // AUTH
@@ -596,9 +709,12 @@ function mostrarDashboard() {
 function iniciarAutoRefresh() {
   if (refreshInterval) clearInterval(refreshInterval);
   refreshInterval = setInterval(() => {
+    cachedRootCause = null; // invalidar cache root cause a cada hora
     carregarDashboard();
     const dvPanel = document.getElementById('panel-devops');
     if (dvPanel && !dvPanel.classList.contains('hidden')) carregarDevOps();
+    const rcPanel = document.getElementById('panel-rootcause');
+    if (rcPanel && !rcPanel.classList.contains('hidden')) carregarRootCause();
   }, 3600000); // 1 hora
 }
 
@@ -723,6 +839,7 @@ function getPriorityColors(priority) {
 }
 
 function aplicarFiltros() {
+  cachedRootCause = null; // filtros mudaram — invalidar cache root cause
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => carregarDashboard(), 300);
 }
@@ -1063,12 +1180,16 @@ function escHtml(s) {
 // TABS
 // ============================================================
 function switchTab(tab) {
-  ['ops', 'devops', 'alerts'].forEach(t => {
+  ['ops', 'devops', 'alerts', 'rootcause'].forEach(t => {
     document.getElementById(`panel-${t}`).classList.toggle('hidden', tab !== t);
     document.getElementById(`tab-${t}`).classList.toggle('active', tab === t);
   });
   if (tab === 'devops') carregarDevOps();
   if (tab === 'alerts') renderAlertPage();
+  if (tab === 'rootcause') {
+    if (!cachedRootCause) carregarRootCause();
+    else renderRootCausePage(cachedRootCause);
+  }
 }
 
 function carregarDevOps() {
@@ -1208,6 +1329,151 @@ function initDevOpsCharts() {
       scales: SCALE
     }
   });
+}
+
+// ============================================================
+// ROOT CAUSE V3
+// ============================================================
+async function carregarRootCause() {
+  const token = sessionStorage.getItem('dashboardToken');
+  const filtros = getFiltros();
+  const headers = { 'Authorization': `Bearer ${token}` };
+
+  // Loading state
+  const summaryEl = document.getElementById('rc-ai-summary');
+  if (summaryEl) summaryEl.innerHTML = '<div class="text-slate-400 text-sm py-2">⟳ Analisando tickets e gerando diagnóstico com IA... (pode levar ~10s)</div>';
+  ['rc-problems-body', 'rc-rootcause-body', 'rc-correlation-body', 'rc-recurrence-body'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<tr><td colspan="8" class="py-4 text-center"><div class="skeleton h-5 rounded mx-auto w-48"></div></td></tr>`;
+  });
+  const actEl = document.getElementById('rc-actions-list');
+  if (actEl) actEl.innerHTML = '<div class="skeleton h-10 rounded-lg"></div><div class="skeleton h-10 rounded-lg mt-2"></div>';
+
+  const { priorityFilter, client, group, ...backendFiltros } = filtros;
+  const qs = new URLSearchParams(Object.fromEntries(Object.entries(backendFiltros).filter(([,v]) => v))).toString();
+
+  try {
+    const data = await fetch(`${ENDPOINTS.rootcause}${qs ? '?' + qs : ''}`, { headers }).then(r => r.json());
+    cachedRootCause = data;
+    renderRootCausePage(data);
+  } catch(e) {
+    if (summaryEl) summaryEl.innerHTML = `<div class="text-red-400 text-sm">❌ Erro ao carregar análise: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderRootCausePage(data) {
+  const clusters = data.clusters || [];
+
+  // 1. AI Summary
+  const summaryEl = document.getElementById('rc-ai-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = data.aiSummary
+      ? `<div class="flex items-start gap-3 p-4 rounded-lg bg-indigo-950/20 border border-indigo-900/20">
+           <span class="text-indigo-400 text-2xl flex-shrink-0">🧠</span>
+           <div class="text-slate-300 text-sm leading-relaxed">${escHtml(data.aiSummary)}</div>
+         </div>
+         <div class="mt-2 text-slate-600 text-xs">Baseado em ${data.totalTickets || 0} tickets · Gerado em ${new Date(data.generatedAt || Date.now()).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</div>`
+      : '<div class="text-slate-500 text-sm py-2">Resumo indisponível.</div>';
+  }
+
+  // 2. Top Problems
+  const probEl = document.getElementById('rc-problems-body');
+  if (probEl) {
+    if (!clusters.length) {
+      probEl.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500">Sem dados no período</td></tr>';
+    } else {
+      probEl.innerHTML = clusters.map((c, i) => {
+        const riskCls = c.riskLevel === 'CRÍTICO' ? 'badge-critical' : c.riskLevel === 'ALTO' ? 'badge-high' : c.riskLevel === 'MÉDIO' ? 'badge-medium' : 'badge-low';
+        const scoreColor = c.priorityScore >= 80 ? 'text-red-400' : c.priorityScore >= 50 ? 'text-yellow-400' : 'text-slate-400';
+        const barColor = c.priorityScore >= 80 ? 'bg-red-500' : c.priorityScore >= 50 ? 'bg-yellow-500' : 'bg-slate-500';
+        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/20">
+          <td class="py-2.5 px-3 text-slate-500 font-bold">${i + 1}</td>
+          <td class="py-2.5 px-3 font-medium text-slate-200 text-sm">${escHtml(c.name)}</td>
+          <td class="py-2.5 px-3">
+            <div class="flex items-center gap-2">
+              <span class="font-bold ${scoreColor} w-8 text-right">${c.priorityScore}</span>
+              <div class="w-16 bg-slate-800 rounded-full h-1.5"><div class="h-1.5 rounded-full ${barColor}" style="width:${c.priorityScore}%"></div></div>
+            </div>
+          </td>
+          <td class="py-2.5 px-3 text-center text-slate-300">${c.tickets}</td>
+          <td class="py-2.5 px-3 text-center text-slate-400">${c.clients}</td>
+          <td class="py-2.5 px-3 text-center font-bold text-lg ${c.trend === '↑' ? 'text-red-400' : c.trend === '↓' ? 'text-green-400' : 'text-yellow-400'}">${c.trend}</td>
+          <td class="py-2.5 px-3 text-center"><span class="${riskCls}">${c.riskLevel}</span></td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // 3. Root Cause Table
+  const rcEl = document.getElementById('rc-rootcause-body');
+  if (rcEl) {
+    if (!clusters.length) {
+      rcEl.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-500">Sem dados</td></tr>';
+    } else {
+      rcEl.innerHTML = clusters.map(c => {
+        const confCls = c.confidence === 'HIGH' ? 'text-green-400' : c.confidence === 'MEDIUM' ? 'text-yellow-400' : 'text-slate-500';
+        return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/20">
+          <td class="py-2.5 px-3 font-medium text-slate-200 text-sm">${escHtml(c.name)}</td>
+          <td class="py-2.5 px-3 text-slate-400 text-xs leading-relaxed">${escHtml(c.rootCause)}</td>
+          <td class="py-2.5 px-3 text-slate-500 text-xs text-center">${escHtml(c.system)}</td>
+          <td class="py-2.5 px-3 text-center text-xs ${confCls} font-semibold">${c.confidence}</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // 4. Correlation Map
+  const corrEl = document.getElementById('rc-correlation-body');
+  if (corrEl) {
+    if (!clusters.length) {
+      corrEl.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-500">Sem dados</td></tr>';
+    } else {
+      corrEl.innerHTML = clusters.slice(0, 8).map(c => {
+        const corrCls = c.correlationScore === 'HIGH' ? 'badge-critical' : c.correlationScore === 'MEDIUM' ? 'badge-medium' : 'badge-low';
+        return `<tr class="border-b border-slate-800/40">
+          <td class="py-2 px-2 text-slate-200 text-xs font-medium">${escHtml(c.name)}</td>
+          <td class="py-2 px-2 text-center text-blue-400 font-semibold">${c.tickets}</td>
+          <td class="py-2 px-2 text-center text-purple-400 font-semibold">${c.devopsBugs}</td>
+          <td class="py-2 px-2 text-center"><span class="${corrCls}">${c.correlationScore}</span></td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // 5. Recurrence
+  const recEl = document.getElementById('rc-recurrence-body');
+  if (recEl) {
+    if (!clusters.length) {
+      recEl.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-500">Sem dados</td></tr>';
+    } else {
+      recEl.innerHTML = clusters.slice(0, 8).map(c => {
+        const riskCls = c.riskLevel === 'CRÍTICO' ? 'badge-critical' : c.riskLevel === 'ALTO' ? 'badge-high' : c.riskLevel === 'MÉDIO' ? 'badge-medium' : 'badge-low';
+        return `<tr class="border-b border-slate-800/40">
+          <td class="py-2 px-2 text-slate-200 text-xs font-medium">${escHtml(c.name)}</td>
+          <td class="py-2 px-2 text-center font-bold">${c.recurrenceScore}</td>
+          <td class="py-2 px-2 text-center font-bold text-lg ${c.trend === '↑' ? 'text-red-400' : c.trend === '↓' ? 'text-green-400' : 'text-yellow-400'}">${c.trend}</td>
+          <td class="py-2 px-2 text-center"><span class="${riskCls}">${c.riskLevel}</span></td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // 6. Recommended Actions
+  const actEl = document.getElementById('rc-actions-list');
+  if (actEl) {
+    const recs = data.recommendations || [];
+    if (!recs.length) {
+      actEl.innerHTML = '<div class="text-slate-500 text-sm">Sem recomendações disponíveis.</div>';
+    } else {
+      const icons = ['🔴', '🟠', '🟡', '🔵', '🟢'];
+      actEl.innerHTML = recs.map((r, i) => `
+        <div class="flex items-start gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+          <span class="text-lg mt-0.5 flex-shrink-0">${icons[i] || '⚡'}</span>
+          <span class="text-slate-200 text-sm leading-relaxed">${escHtml(r)}</span>
+        </div>
+      `).join('');
+    }
+  }
 }
 
 // ============================================================
