@@ -437,6 +437,46 @@
         </div>
       </div>
 
+      <!-- ROW 5: Outcomes por Mês de Resolução (Pivot Table) -->
+      <div class="card p-5">
+        <h2 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+          <span>📊</span> Outcomes por Mês de Resolução
+          <span class="ml-auto text-xs text-slate-600 font-normal">Azure DevOps · Jan–Abr 2026</span>
+        </h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs border-collapse" style="min-width:900px">
+            <thead>
+              <!-- Nível 1: grupos de período -->
+              <tr class="text-center">
+                <th rowspan="2" class="text-left py-2 px-3 bg-slate-800 text-slate-300 font-semibold border border-slate-700 whitespace-nowrap" style="min-width:130px">Outcome</th>
+                <th colspan="2" class="py-1 px-2 bg-slate-700/80 text-slate-400 font-semibold border border-slate-600">&lt;02/01/2026</th>
+                <th colspan="2" class="py-1 px-2 bg-indigo-900/40 text-indigo-300 font-semibold border border-slate-600">jan</th>
+                <th colspan="2" class="py-1 px-2 bg-violet-900/40 text-violet-300 font-semibold border border-slate-600">fev</th>
+                <th colspan="2" class="py-1 px-2 bg-blue-900/40 text-blue-300 font-semibold border border-slate-600">mar</th>
+                <th colspan="2" class="py-1 px-2 bg-cyan-900/40 text-cyan-300 font-semibold border border-slate-600">abr</th>
+                <th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600 whitespace-nowrap">Total Qtde</th>
+                <th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600 whitespace-nowrap">Total Esforço (Hrs)</th>
+                <th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600">Rep (%)</th>
+              </tr>
+              <!-- Nível 2: sub-colunas Qtde / Esforço -->
+              <tr class="text-center text-slate-500">
+                <th class="py-1 px-2 bg-slate-800/60 border border-slate-700">Qtde</th><th class="py-1 px-2 bg-slate-800/60 border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>
+                <th class="py-1 px-2 bg-indigo-900/20 border border-slate-700">Qtde</th><th class="py-1 px-2 bg-indigo-900/20 border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>
+                <th class="py-1 px-2 bg-violet-900/20 border border-slate-700">Qtde</th><th class="py-1 px-2 bg-violet-900/20 border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>
+                <th class="py-1 px-2 bg-blue-900/20 border border-slate-700">Qtde</th><th class="py-1 px-2 bg-blue-900/20 border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>
+                <th class="py-1 px-2 bg-cyan-900/20 border border-slate-700">Qtde</th><th class="py-1 px-2 bg-cyan-900/20 border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>
+                <th class="py-1 px-2 bg-slate-800/60 border border-slate-700"></th>
+                <th class="py-1 px-2 bg-slate-800/60 border border-slate-700"></th>
+                <th class="py-1 px-2 bg-slate-800/60 border border-slate-700"></th>
+              </tr>
+            </thead>
+            <tbody id="dv-outcomes-pivot-body">
+              <!-- Gerado por renderOutcomesPivot() -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div><!-- /panel-devops -->
 
     <!-- PAINEL ALERTAS OPERACIONAIS -->
@@ -1568,6 +1608,74 @@ function initDevOpsCharts() {
       scales: SCALE
     }
   });
+
+  renderOutcomesPivot();
+}
+
+// ============================================================
+// DEVOPS N2 — OUTCOMES PIVOT TABLE
+// Cada linha: [nome, [<02Q,<02H], [janQ,janH], [fevQ,fevH], [marQ,marH], [abrQ,abrH], totalQ, totalH, repPct]
+// null = célula vazia (—)
+// ============================================================
+function renderOutcomesPivot() {
+  const DATA = [
+    ['Bad Explanation', [2,null],[4,8],  [2,2],   [2,4],    [null,null], 10,   14,   0 ],
+    ['Configuration',   [1,2],  [null,null],[null,null],[null,null],[null,null], 1,  2,   0 ],
+    ['Datafix',         [4,2],  [32,86], [52,249],[74,47],  [null,null], 162, 384,  12 ],
+    ['Explanation',     [3,5],  [50,160],[44,44], [56,184], [null,null], 153, 393,  13 ],
+    ['Hotfix',          [4,35], [35,674],[35,371],[45,524], [9,null],    128, 1604, 51 ],
+    ['Improvement',     [null,null],[14,58],[null,null],[9,115],[2,74],   25,  247,   8 ],
+    ['Palliative',      [null,null],[23,58],[35,70],[49,131],[2,7],       109, 266,   9 ],
+    ['ProcedureFix',    [1,1],  [4,null],[2,6],   [7,30],   [1,5],       15,   42,   1 ],
+    ['Re-Deploy',       [null,null],[11,27],[21,64],[6,61],  [null,null], 38,  152,   5 ],
+    ['User Story',      [null,null],[null,null],[null,null],[3,11],[null,null], 3, 11, 0 ],
+  ];
+  const TOTAL = [[15,43],[173,1067],[191,806],[263,1192],[2,7], 644, 3115, 100];
+
+  const repColors = [
+    { min:40, cls:'text-red-400 font-bold' },
+    { min:10, cls:'text-orange-400 font-semibold' },
+    { min: 5, cls:'text-yellow-400' },
+    { min: 1, cls:'text-slate-300' },
+    { min: 0, cls:'text-slate-500' },
+  ];
+  function repCls(v) { return (repColors.find(r => v >= r.min) || repColors.at(-1)).cls; }
+  function cell(v) { return v == null ? '<span class="text-slate-700">—</span>' : v.toLocaleString('pt-BR'); }
+  function pairCells(pair, bg) {
+    return `<td class="py-1.5 px-2 text-center border border-slate-800 ${bg}">${cell(pair[0])}</td>`
+          +`<td class="py-1.5 px-2 text-center border border-slate-800 text-slate-500 ${bg}">${cell(pair[1])}</td>`;
+  }
+
+  const rows = DATA.map(([name, p0, p1, p2, p3, p4, tQ, tH, rep]) => {
+    const rc = repCls(rep);
+    return `<tr class="hover:bg-slate-800/40 transition-colors">
+      <td class="py-1.5 px-3 text-slate-200 border border-slate-800 whitespace-nowrap font-medium">${name}</td>
+      ${pairCells(p0,'bg-slate-800/20')}
+      ${pairCells(p1,'bg-indigo-900/10')}
+      ${pairCells(p2,'bg-violet-900/10')}
+      ${pairCells(p3,'bg-blue-900/10')}
+      ${pairCells(p4,'bg-cyan-900/10')}
+      <td class="py-1.5 px-2 text-center border border-slate-800 font-semibold text-slate-200">${tQ.toLocaleString('pt-BR')}</td>
+      <td class="py-1.5 px-2 text-center border border-slate-800 text-slate-400">${tH.toLocaleString('pt-BR')}</td>
+      <td class="py-1.5 px-2 text-center border border-slate-800 ${rc}">${rep}%</td>
+    </tr>`;
+  }).join('');
+
+  const [tp0,tp1,tp2,tp3,tp4,tQ,tH,tRep] = TOTAL;
+  const totalRow = `<tr class="bg-slate-700/50 font-bold text-slate-100">
+    <td class="py-2 px-3 border border-slate-600 whitespace-nowrap">Total Geral</td>
+    ${pairCells(tp0,'bg-slate-700/30')}
+    ${pairCells(tp1,'bg-indigo-900/20')}
+    ${pairCells(tp2,'bg-violet-900/20')}
+    ${pairCells(tp3,'bg-blue-900/20')}
+    ${pairCells(tp4,'bg-cyan-900/20')}
+    <td class="py-2 px-2 text-center border border-slate-600">${tQ.toLocaleString('pt-BR')}</td>
+    <td class="py-2 px-2 text-center border border-slate-600">${tH.toLocaleString('pt-BR')}</td>
+    <td class="py-2 px-2 text-center border border-slate-600 text-indigo-300">100%</td>
+  </tr>`;
+
+  const el = document.getElementById('dv-outcomes-pivot-body');
+  if (el) el.innerHTML = rows + totalRow;
 }
 
 // ============================================================
