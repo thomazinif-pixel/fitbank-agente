@@ -1667,7 +1667,7 @@ const MONTH_LABELS = { '01':'jan','02':'fev','03':'mar','04':'abr','05':'mai','0
 
 // ---- Renderização DINÂMICA (dados do Azure DevOps) ----
 function _renderPivotDynamic(data) {
-  const { outcomes, months, totalQty, totalHrs } = data;
+  const { outcomes, months, totalQty, totalHrs, hrsAvailable } = data;
 
   // Atualizar cabeçalhos dinamicamente
   const h1 = document.getElementById('dv-pivot-head1');
@@ -1682,7 +1682,7 @@ function _renderPivotDynamic(data) {
     h1.innerHTML = existingTh + mthH1 +
       `<th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600 whitespace-nowrap">Total Qtde</th>
        <th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600 whitespace-nowrap">Total Esforço (Hrs)</th>
-       <th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600">Rep (%)</th>`;
+       <th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600">Rep%${hrsAvailable === false ? ' <span class=\'text-slate-500 font-normal text-xs\'>(qtde)</span>' : ''}</th>`;
 
     h2.innerHTML = months.map((m, i) => {
       const p = _MONTH_PALETTE[i % _MONTH_PALETTE.length];
