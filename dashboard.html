@@ -444,12 +444,11 @@
           <span class="ml-auto text-xs text-slate-600 font-normal">Azure DevOps · Jan–Abr 2026</span>
         </h2>
         <div class="overflow-x-auto">
-          <table class="w-full text-xs border-collapse" style="min-width:900px">
-            <thead>
-              <!-- Nível 1: grupos de período -->
-              <tr class="text-center">
+          <table class="w-full text-xs border-collapse" style="min-width:760px">
+            <thead id="dv-pivot-thead">
+              <!-- Nível 1: grupos de período (gerado dinamicamente por renderOutcomesPivot) -->
+              <tr class="text-center" id="dv-pivot-head1">
                 <th rowspan="2" class="text-left py-2 px-3 bg-slate-800 text-slate-300 font-semibold border border-slate-700 whitespace-nowrap" style="min-width:130px">Outcome</th>
-                <th colspan="2" class="py-1 px-2 bg-slate-700/80 text-slate-400 font-semibold border border-slate-600">&lt;02/01/2026</th>
                 <th colspan="2" class="py-1 px-2 bg-indigo-900/40 text-indigo-300 font-semibold border border-slate-600">jan</th>
                 <th colspan="2" class="py-1 px-2 bg-violet-900/40 text-violet-300 font-semibold border border-slate-600">fev</th>
                 <th colspan="2" class="py-1 px-2 bg-blue-900/40 text-blue-300 font-semibold border border-slate-600">mar</th>
@@ -459,8 +458,7 @@
                 <th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600">Rep (%)</th>
               </tr>
               <!-- Nível 2: sub-colunas Qtde / Esforço -->
-              <tr class="text-center text-slate-500">
-                <th class="py-1 px-2 bg-slate-800/60 border border-slate-700">Qtde</th><th class="py-1 px-2 bg-slate-800/60 border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>
+              <tr class="text-center text-slate-500" id="dv-pivot-head2">
                 <th class="py-1 px-2 bg-indigo-900/20 border border-slate-700">Qtde</th><th class="py-1 px-2 bg-indigo-900/20 border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>
                 <th class="py-1 px-2 bg-violet-900/20 border border-slate-700">Qtde</th><th class="py-1 px-2 bg-violet-900/20 border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>
                 <th class="py-1 px-2 bg-blue-900/20 border border-slate-700">Qtde</th><th class="py-1 px-2 bg-blue-900/20 border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>
@@ -920,8 +918,9 @@ const ENDPOINTS = {
   clients:     `${N8N_BASE}/dashboard-clients`,
   bottlenecks: `${N8N_BASE}/dashboard-bottlenecks`,
   insights:    `${N8N_BASE}/dashboard-insights`,
-  rootcause:   `${N8N_BASE}/dashboard-root-cause`,
-  operations:  `${N8N_BASE}/dashboard-operations`,
+  rootcause:    `${N8N_BASE}/dashboard-root-cause`,
+  operations:   `${N8N_BASE}/dashboard-operations`,
+  devopsPivot:  `${N8N_BASE}/dashboard-devops-pivot`,
 };
 
 let ticketsChart = null;
@@ -1476,6 +1475,20 @@ function carregarDevOps() {
     .forEach(c => { if (c) c.destroy(); });
   dvOrigemChart = dvMensalChart = dvClientesChart = dvServicosChart = dvCausasChart = dvOutcomesChart = null;
   initDevOpsCharts();
+  carregarDevOpsPivot();
+}
+
+async function carregarDevOpsPivot() {
+  const el = document.getElementById('dv-outcomes-pivot-body');
+  if (el) el.innerHTML = `<tr><td colspan="11" class="py-5 text-center text-slate-500 text-xs">⟳ Buscando dados Azure DevOps...</td></tr>`;
+  try {
+    const token = sessionStorage.getItem('dashboardToken');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const data = await fetch(ENDPOINTS.devopsPivot, { headers }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    renderOutcomesPivot(data);
+  } catch(e) {
+    renderOutcomesPivot(null); // fallback estático
+  }
 }
 
 // ============================================================
@@ -1609,66 +1622,158 @@ function initDevOpsCharts() {
     }
   });
 
-  renderOutcomesPivot();
+  // pivot carregado por carregarDevOpsPivot() com dados dinâmicos
 }
 
 // ============================================================
 // DEVOPS N2 — OUTCOMES PIVOT TABLE
-// Cada linha: [nome, [<02Q,<02H], [janQ,janH], [fevQ,fevH], [marQ,marH], [abrQ,abrH], totalQ, totalH, repPct]
-// null = célula vazia (—)
+// Suporta dados dinâmicos (Azure DevOps via n8n) ou fallback estático.
 // ============================================================
-function renderOutcomesPivot() {
-  const DATA = [
-    ['Bad Explanation', [2,null],[4,8],  [2,2],   [2,4],    [null,null], 10,   14,   0 ],
-    ['Configuration',   [1,2],  [null,null],[null,null],[null,null],[null,null], 1,  2,   0 ],
-    ['Datafix',         [4,2],  [32,86], [52,249],[74,47],  [null,null], 162, 384,  12 ],
-    ['Explanation',     [3,5],  [50,160],[44,44], [56,184], [null,null], 153, 393,  13 ],
-    ['Hotfix',          [4,35], [35,674],[35,371],[45,524], [9,null],    128, 1604, 51 ],
-    ['Improvement',     [null,null],[14,58],[null,null],[9,115],[2,74],   25,  247,   8 ],
-    ['Palliative',      [null,null],[23,58],[35,70],[49,131],[2,7],       109, 266,   9 ],
-    ['ProcedureFix',    [1,1],  [4,null],[2,6],   [7,30],   [1,5],       15,   42,   1 ],
-    ['Re-Deploy',       [null,null],[11,27],[21,64],[6,61],  [null,null], 38,  152,   5 ],
-    ['User Story',      [null,null],[null,null],[null,null],[3,11],[null,null], 3, 11, 0 ],
-  ];
-  const TOTAL = [[15,43],[173,1067],[191,806],[263,1192],[2,7], 644, 3115, 100];
+function renderOutcomesPivot(dynamicData) {
+  if (dynamicData && Array.isArray(dynamicData.outcomes) && dynamicData.outcomes.length) {
+    _renderPivotDynamic(dynamicData);
+  } else {
+    _renderPivotStatic();
+  }
+}
 
-  const repColors = [
-    { min:40, cls:'text-red-400 font-bold' },
-    { min:10, cls:'text-orange-400 font-semibold' },
-    { min: 5, cls:'text-yellow-400' },
-    { min: 1, cls:'text-slate-300' },
-    { min: 0, cls:'text-slate-500' },
-  ];
-  function repCls(v) { return (repColors.find(r => v >= r.min) || repColors.at(-1)).cls; }
-  function cell(v) { return v == null ? '<span class="text-slate-700">—</span>' : v.toLocaleString('pt-BR'); }
-  function pairCells(pair, bg) {
-    return `<td class="py-1.5 px-2 text-center border border-slate-800 ${bg}">${cell(pair[0])}</td>`
-          +`<td class="py-1.5 px-2 text-center border border-slate-800 text-slate-500 ${bg}">${cell(pair[1])}</td>`;
+// ---- Helpers compartilhados ----
+const _repColors = [
+  { min:40, cls:'text-red-400 font-bold' },
+  { min:10, cls:'text-orange-400 font-semibold' },
+  { min: 5, cls:'text-yellow-400' },
+  { min: 1, cls:'text-slate-300' },
+  { min: 0, cls:'text-slate-500' },
+];
+function _repCls(v) { return (_repColors.find(r => v >= r.min) || _repColors.at(-1)).cls; }
+function _cell(v) { return (v == null || v === 0 && v !== 0) ? '<span class="text-slate-700">—</span>' : Number(v).toLocaleString('pt-BR'); }
+function _cellV(v) { return v == null ? '<span class="text-slate-700">—</span>' : Number(v).toLocaleString('pt-BR'); }
+function _pair(q, h, bgQ, bgH) {
+  return `<td class="py-1.5 px-2 text-center border border-slate-800 ${bgQ}">${_cellV(q)}</td>`
+        +`<td class="py-1.5 px-2 text-center border border-slate-800 text-slate-500 ${bgH}">${_cellV(h)}</td>`;
+}
+
+// Paleta de cores para colunas dinâmicas (cicla se mais de 6 meses)
+const _MONTH_PALETTE = [
+  { h1:'bg-indigo-900/40 text-indigo-300',   h2q:'bg-indigo-900/20',  h2h:'bg-indigo-900/20',  dq:'bg-indigo-900/10',  dh:'bg-indigo-900/10',  tq:'bg-indigo-900/20',  th:'bg-indigo-900/20'  },
+  { h1:'bg-violet-900/40 text-violet-300',   h2q:'bg-violet-900/20',  h2h:'bg-violet-900/20',  dq:'bg-violet-900/10',  dh:'bg-violet-900/10',  tq:'bg-violet-900/20',  th:'bg-violet-900/20'  },
+  { h1:'bg-blue-900/40 text-blue-300',       h2q:'bg-blue-900/20',    h2h:'bg-blue-900/20',    dq:'bg-blue-900/10',    dh:'bg-blue-900/10',    tq:'bg-blue-900/20',    th:'bg-blue-900/20'    },
+  { h1:'bg-cyan-900/40 text-cyan-300',       h2q:'bg-cyan-900/20',    h2h:'bg-cyan-900/20',    dq:'bg-cyan-900/10',    dh:'bg-cyan-900/10',    tq:'bg-cyan-900/20',    th:'bg-cyan-900/20'    },
+  { h1:'bg-teal-900/40 text-teal-300',       h2q:'bg-teal-900/20',    h2h:'bg-teal-900/20',    dq:'bg-teal-900/10',    dh:'bg-teal-900/10',    tq:'bg-teal-900/20',    th:'bg-teal-900/20'    },
+  { h1:'bg-emerald-900/40 text-emerald-300', h2q:'bg-emerald-900/20', h2h:'bg-emerald-900/20', dq:'bg-emerald-900/10', dh:'bg-emerald-900/10', tq:'bg-emerald-900/20', th:'bg-emerald-900/20' },
+  { h1:'bg-slate-700/60 text-slate-300',     h2q:'bg-slate-700/30',   h2h:'bg-slate-700/30',   dq:'bg-slate-700/20',   dh:'bg-slate-700/20',   tq:'bg-slate-700/30',   th:'bg-slate-700/30'   },
+];
+const MONTH_LABELS = { '01':'jan','02':'fev','03':'mar','04':'abr','05':'mai','06':'jun','07':'jul','08':'ago','09':'set','10':'out','11':'nov','12':'dez' };
+
+// ---- Renderização DINÂMICA (dados do Azure DevOps) ----
+function _renderPivotDynamic(data) {
+  const { outcomes, months, totalQty, totalHrs } = data;
+
+  // Atualizar cabeçalhos dinamicamente
+  const h1 = document.getElementById('dv-pivot-head1');
+  const h2 = document.getElementById('dv-pivot-head2');
+  if (h1 && h2) {
+    const existingTh = h1.querySelector('th[rowspan="2"]').outerHTML;
+    const mthH1 = months.map((m, i) => {
+      const p = _MONTH_PALETTE[i % _MONTH_PALETTE.length];
+      const label = MONTH_LABELS[m.slice(5)] || m.slice(5);
+      return `<th colspan="2" class="py-1 px-2 ${p.h1} font-semibold border border-slate-600">${label}</th>`;
+    }).join('');
+    h1.innerHTML = existingTh + mthH1 +
+      `<th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600 whitespace-nowrap">Total Qtde</th>
+       <th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600 whitespace-nowrap">Total Esforço (Hrs)</th>
+       <th class="py-1 px-2 bg-slate-700/80 text-slate-300 font-semibold border border-slate-600">Rep (%)</th>`;
+
+    h2.innerHTML = months.map((m, i) => {
+      const p = _MONTH_PALETTE[i % _MONTH_PALETTE.length];
+      return `<th class="py-1 px-2 ${p.h2q} border border-slate-700">Qtde</th><th class="py-1 px-2 ${p.h2h} border border-slate-700 whitespace-nowrap">Esforço (Hrs)</th>`;
+    }).join('') +
+      `<th class="py-1 px-2 bg-slate-800/60 border border-slate-700"></th>
+       <th class="py-1 px-2 bg-slate-800/60 border border-slate-700"></th>
+       <th class="py-1 px-2 bg-slate-800/60 border border-slate-700"></th>`;
   }
 
-  const rows = DATA.map(([name, p0, p1, p2, p3, p4, tQ, tH, rep]) => {
-    const rc = repCls(rep);
+  // Linhas de dados
+  const rows = outcomes.map(o => {
+    const rc = _repCls(o.rep);
+    const mCells = months.map((m, i) => {
+      const p = _MONTH_PALETTE[i % _MONTH_PALETTE.length];
+      const mo = o.months.find(x => x.key === m);
+      return _pair(mo?.qty || null, mo?.hrs || null, p.dq, p.dh);
+    }).join('');
+    return `<tr class="hover:bg-slate-800/40 transition-colors">
+      <td class="py-1.5 px-3 text-slate-200 border border-slate-800 whitespace-nowrap font-medium">${escHtml(o.name)}</td>
+      ${mCells}
+      <td class="py-1.5 px-2 text-center border border-slate-800 font-semibold text-slate-200">${o.totalQty.toLocaleString('pt-BR')}</td>
+      <td class="py-1.5 px-2 text-center border border-slate-800 text-slate-400">${o.totalHrs.toLocaleString('pt-BR')}</td>
+      <td class="py-1.5 px-2 text-center border border-slate-800 ${rc}">${o.rep}%</td>
+    </tr>`;
+  }).join('');
+
+  const totalCells = months.map((m, i) => {
+    const p = _MONTH_PALETTE[i % _MONTH_PALETTE.length];
+    const sumQ = outcomes.reduce((s,o) => s + (o.months.find(x=>x.key===m)?.qty||0), 0);
+    const sumH = outcomes.reduce((s,o) => s + (o.months.find(x=>x.key===m)?.hrs||0), 0);
+    return _pair(sumQ||null, sumH||null, p.tq, p.th);
+  }).join('');
+
+  const totalRow = `<tr class="bg-slate-700/50 font-bold text-slate-100">
+    <td class="py-2 px-3 border border-slate-600 whitespace-nowrap">Total Geral</td>
+    ${totalCells}
+    <td class="py-2 px-2 text-center border border-slate-600">${totalQty.toLocaleString('pt-BR')}</td>
+    <td class="py-2 px-2 text-center border border-slate-600">${totalHrs.toLocaleString('pt-BR')}</td>
+    <td class="py-2 px-2 text-center border border-slate-600 text-indigo-300">100%</td>
+  </tr>`;
+
+  const badge = `<div class="text-xs text-emerald-400 mb-2">✅ Dados ao vivo — Azure DevOps · atualizado ${new Date(data.generatedAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'})}</div>`;
+  const el = document.getElementById('dv-outcomes-pivot-body');
+  if (el) el.innerHTML = rows + totalRow;
+  const wrap = el?.closest('.card');
+  const existing = wrap?.querySelector('.pivot-source-badge');
+  if (existing) existing.remove();
+  if (wrap) { const d = document.createElement('div'); d.className='pivot-source-badge'; d.innerHTML=badge; wrap.insertBefore(d, wrap.querySelector('.overflow-x-auto')); }
+}
+
+// ---- Renderização ESTÁTICA (fallback jan–abr 2026) ----
+function _renderPivotStatic() {
+  // <02/01/2026 já somado em jan
+  // [nome, [janQ,janH], [fevQ,fevH], [marQ,marH], [abrQ,abrH], totalQ, totalH, rep]
+  const DATA = [
+    ['Bad Explanation', [6,8],    [2,2],    [2,4],    [null,null], 10,   14,   0 ],
+    ['Configuration',   [1,2],    [null,null],[null,null],[null,null], 1,  2,   0 ],
+    ['Datafix',         [36,88],  [52,249], [74,47],  [null,null], 162, 384,  12 ],
+    ['Explanation',     [53,165], [44,44],  [56,184], [null,null], 153, 393,  13 ],
+    ['Hotfix',          [39,709], [35,371], [45,524], [9,null],    128, 1604, 51 ],
+    ['Improvement',     [14,58],  [null,null],[9,115],[2,74],        25, 247,   8 ],
+    ['Palliative',      [23,58],  [35,70],  [49,131], [2,7],       109, 266,   9 ],
+    ['ProcedureFix',    [5,1],    [2,6],    [7,30],   [1,5],        15,  42,   1 ],
+    ['Re-Deploy',       [11,27],  [21,64],  [6,61],   [null,null],  38, 152,   5 ],
+    ['User Story',      [null,null],[null,null],[3,11],[null,null],   3,  11,   0 ],
+  ];
+  const MONTHS_STATIC = ['jan','fev','mar','abr'];
+  const TOTAL = [[188,1110],[191,806],[263,1192],[2,7], 644, 3115, 100];
+
+  const rows = DATA.map(([name, p0, p1, p2, p3, tQ, tH, rep]) => {
+    const rc = _repCls(rep);
     return `<tr class="hover:bg-slate-800/40 transition-colors">
       <td class="py-1.5 px-3 text-slate-200 border border-slate-800 whitespace-nowrap font-medium">${name}</td>
-      ${pairCells(p0,'bg-slate-800/20')}
-      ${pairCells(p1,'bg-indigo-900/10')}
-      ${pairCells(p2,'bg-violet-900/10')}
-      ${pairCells(p3,'bg-blue-900/10')}
-      ${pairCells(p4,'bg-cyan-900/10')}
+      ${_pair(p0[0],p0[1],'bg-indigo-900/10','bg-indigo-900/10')}
+      ${_pair(p1[0],p1[1],'bg-violet-900/10','bg-violet-900/10')}
+      ${_pair(p2[0],p2[1],'bg-blue-900/10','bg-blue-900/10')}
+      ${_pair(p3[0],p3[1],'bg-cyan-900/10','bg-cyan-900/10')}
       <td class="py-1.5 px-2 text-center border border-slate-800 font-semibold text-slate-200">${tQ.toLocaleString('pt-BR')}</td>
       <td class="py-1.5 px-2 text-center border border-slate-800 text-slate-400">${tH.toLocaleString('pt-BR')}</td>
       <td class="py-1.5 px-2 text-center border border-slate-800 ${rc}">${rep}%</td>
     </tr>`;
   }).join('');
 
-  const [tp0,tp1,tp2,tp3,tp4,tQ,tH,tRep] = TOTAL;
+  const [tp0,tp1,tp2,tp3,tQ,tH] = TOTAL;
   const totalRow = `<tr class="bg-slate-700/50 font-bold text-slate-100">
     <td class="py-2 px-3 border border-slate-600 whitespace-nowrap">Total Geral</td>
-    ${pairCells(tp0,'bg-slate-700/30')}
-    ${pairCells(tp1,'bg-indigo-900/20')}
-    ${pairCells(tp2,'bg-violet-900/20')}
-    ${pairCells(tp3,'bg-blue-900/20')}
-    ${pairCells(tp4,'bg-cyan-900/20')}
+    ${_pair(tp0[0],tp0[1],'bg-indigo-900/20','bg-indigo-900/20')}
+    ${_pair(tp1[0],tp1[1],'bg-violet-900/20','bg-violet-900/20')}
+    ${_pair(tp2[0],tp2[1],'bg-blue-900/20','bg-blue-900/20')}
+    ${_pair(tp3[0],tp3[1],'bg-cyan-900/20','bg-cyan-900/20')}
     <td class="py-2 px-2 text-center border border-slate-600">${tQ.toLocaleString('pt-BR')}</td>
     <td class="py-2 px-2 text-center border border-slate-600">${tH.toLocaleString('pt-BR')}</td>
     <td class="py-2 px-2 text-center border border-slate-600 text-indigo-300">100%</td>
