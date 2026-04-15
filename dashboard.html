@@ -1699,7 +1699,7 @@ function _renderPivotDynamic(data) {
     const mCells = months.map((m, i) => {
       const p = _MONTH_PALETTE[i % _MONTH_PALETTE.length];
       const mo = o.months.find(x => x.key === m);
-      return _pair(mo?.qty || null, mo?.hrs || null, p.dq, p.dh);
+      return _pair(mo?.qty ?? null, mo?.hrs ?? null, p.dq, p.dh);
     }).join('');
     return `<tr class="hover:bg-slate-800/40 transition-colors">
       <td class="py-1.5 px-3 text-slate-200 border border-slate-800 whitespace-nowrap font-medium">${escHtml(o.name)}</td>

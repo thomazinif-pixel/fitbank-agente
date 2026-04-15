@@ -188,7 +188,7 @@ async function deploy() {
             responseHeaders: {
               entries: [
                 { name: 'Access-Control-Allow-Origin', value: '*' },
-                { name: 'Cache-Control', value: 'public, max-age=900' },
+                { name: 'Cache-Control', value: 'no-store' },
               ],
             },
           },
