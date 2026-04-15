@@ -1484,7 +1484,7 @@ async function carregarDevOpsPivot() {
   try {
     const token = sessionStorage.getItem('dashboardToken');
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-    const data = await fetch(ENDPOINTS.devopsPivot, { headers }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    const data = await fetch(ENDPOINTS.devopsPivot + '?_t=' + Date.now(), { headers, cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
     renderOutcomesPivot(data);
   } catch(e) {
     renderOutcomesPivot(null); // fallback estático
