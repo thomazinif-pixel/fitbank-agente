@@ -60,7 +60,7 @@ for (const wi of allItems) {
   if (!map[outcome]) map[outcome] = {};
   if (!map[outcome][key]) map[outcome][key] = { qty: 0, hrs: 0 };
   map[outcome][key].qty += 1;
-  map[outcome][key].hrs += Math.round(f['Microsoft.VSTS.Scheduling.CompletedWork'] || 0);
+  map[outcome][key].hrs += Math.round(f['Microsoft.VSTS.Scheduling.Effort'] || 0);
 }
 
 // Meses únicos ordenados
@@ -162,7 +162,7 @@ async function deploy() {
           genericAuthType: 'httpBasicAuth',
           sendBody: true,
           specifyBody: 'json',
-          jsonBody: `={{ JSON.stringify({ ids: $json.ids, fields: ["System.Id","System.State","Custom.Outcome","Microsoft.VSTS.Common.StateChangeDate","Microsoft.VSTS.Scheduling.CompletedWork"] }) }}`,
+          jsonBody: `={{ JSON.stringify({ ids: $json.ids, fields: ["System.Id","System.State","Custom.Outcome","Microsoft.VSTS.Common.StateChangeDate","Microsoft.VSTS.Scheduling.Effort"] }) }}`,
           options: {},
         },
       },
