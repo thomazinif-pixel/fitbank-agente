@@ -1,7 +1,11 @@
 // Deploy Jarvis DevOps Pivot V2 workflow
-// Arquitetura: Webhook → WIQL GET → Code(split IDs) → HTTP Batch POST → Code(pivot) → Respond
+// Arquitetura: Webhook → WIQL POST inline → Code(split IDs) → HTTP Batch POST → Code(pivot) → Respond
 // Projeto: dev.azure.com/fitbank / Fit
-// Saved query: 571fae87-709e-410f-9201-bc88f7ad5b6e ("Chatbot - Thomazini")
+//
+// Filtros corretos (validados contra planilha Excel):
+//   - Custom.Outcome <> '' (apenas incidents com outcome preenchido)
+//   - Custom.ResolutionCompletionDate para agrupamento por mês (não StateChangeDate)
+//   - Sem filtro CustomerDemanding
 //
 // Credencial n8n: "Azure DevOps FitBank" (httpBasicAuth) — ID: hkNEhPxhZy1QjZPr
 //   User: (vazio) | Password: PAT do Azure DevOps
@@ -14,7 +18,11 @@ const AZURE_CRED_ID   = 'hkNEhPxhZy1QjZPr';
 const AZURE_CRED_NAME = 'Azure DevOps FitBank';
 const AZDO_ORG        = 'fitbank';
 const AZDO_PROJECT    = 'Fit';
-const WIQL_QUERY_ID   = '571fae87-709e-410f-9201-bc88f7ad5b6e';
+
+// WIQL inline: Incidents com Outcome preenchido, últimos 2 anos, ordenado por data de resolução
+const WIQL_QUERY = JSON.stringify({
+  query: "SELECT [System.Id] FROM WorkItems WHERE [System.WorkItemType] = 'Incident' AND [System.State] IN ('Resolved','Closed') AND [Custom.Outcome] <> '' AND [Custom.ResolutionCompletionDate] >= @startOfDay('-730d') ORDER BY [Custom.ResolutionCompletionDate] DESC"
+});
 
 // ---------- CODE NODE: SPLIT IDs em lotes de 200 ----------
 const CODE_SPLIT = `
@@ -47,12 +55,13 @@ if (!allItems.length) {
 // Filtra para o ano do query param ?year=XXXX ou ano atual
 const yearParam = parseInt($('Webhook DevOps Pivot').item.json.query?.year || new Date().getFullYear());
 
-// Agrupa por outcome e mês (YYYY-MM)
+// Agrupa por outcome e mês (YYYY-MM) usando ResolutionCompletionDate
 const map = {};
 for (const wi of allItems) {
   const f       = wi.fields || {};
-  const outcome = (f['Custom.Outcome'] || 'Outros').trim() || 'Outros';
-  const dateStr = f['Microsoft.VSTS.Common.StateChangeDate'] || '';
+  const outcome = (f['Custom.Outcome'] || '').trim();
+  if (!outcome) continue; // pula itens sem outcome
+  const dateStr = f['Custom.ResolutionCompletionDate'] || '';
   if (!dateStr) continue;
   const d = new Date(dateStr);
   if (d.getFullYear() !== yearParam) continue;
@@ -135,10 +144,13 @@ async function deploy() {
         position: [460, 300],
         credentials: { httpBasicAuth: { id: AZURE_CRED_ID, name: AZURE_CRED_NAME } },
         parameters: {
-          method: 'GET',
-          url: `https://dev.azure.com/${AZDO_ORG}/${encodeURIComponent(AZDO_PROJECT)}/_apis/wit/wiql/${WIQL_QUERY_ID}?api-version=7.1`,
+          method: 'POST',
+          url: `https://dev.azure.com/${AZDO_ORG}/${encodeURIComponent(AZDO_PROJECT)}/_apis/wit/wiql?api-version=7.1`,
           authentication: 'genericCredentialType',
           genericAuthType: 'httpBasicAuth',
+          sendBody: true,
+          specifyBody: 'json',
+          jsonBody: WIQL_QUERY,
           options: {},
         },
       },
@@ -162,7 +174,7 @@ async function deploy() {
           genericAuthType: 'httpBasicAuth',
           sendBody: true,
           specifyBody: 'json',
-          jsonBody: `={{ JSON.stringify({ ids: $json.ids, fields: ["System.Id","System.State","Custom.Outcome","Microsoft.VSTS.Common.StateChangeDate","Microsoft.VSTS.Scheduling.Effort"] }) }}`,
+          jsonBody: `={{ JSON.stringify({ ids: $json.ids, fields: ["System.Id","System.State","Custom.Outcome","Custom.ResolutionCompletionDate","Microsoft.VSTS.Scheduling.Effort"] }) }}`,
           options: {},
         },
       },
