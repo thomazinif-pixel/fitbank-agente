@@ -243,6 +243,31 @@
       </div>
     </div>
 
+    <!-- TOP 25 CLIENTES — STATUS -->
+    <div class="card p-5">
+      <h2 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+        <span>🏢</span> Visão Geral — Top 25 Clientes (Mês Corrente)
+        <span class="ml-auto text-xs text-slate-600 font-normal" id="top25-ref-time"></span>
+      </h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-xs font-semibold border-b border-slate-800">
+              <th class="text-left py-2 px-3 font-medium text-slate-400">Cliente</th>
+              <th class="py-2 px-3 font-medium text-center" style="color:#ef4444">Open</th>
+              <th class="py-2 px-3 font-medium text-center" style="color:#f59e0b">Pending</th>
+              <th class="py-2 px-3 font-medium text-center" style="color:#3b82f6">On Hold</th>
+              <th class="py-2 px-3 font-medium text-center" style="color:#10b981">Solved</th>
+              <th class="py-2 px-3 font-medium text-center text-slate-500">Closed</th>
+            </tr>
+          </thead>
+          <tbody id="top25-status-body">
+            <tr><td colspan="6" class="py-8 text-center text-slate-500">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ROW: CHART + TOP CLIENTS -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
@@ -921,6 +946,7 @@ const ENDPOINTS = {
   rootcause:    `${N8N_BASE}/dashboard-root-cause`,
   operations:   `${N8N_BASE}/dashboard-operations`,
   devopsPivot:  `${N8N_BASE}/dashboard-devops-pivot`,
+  top25Status:  `${N8N_BASE}/dashboard-top25-status`,
 };
 
 let ticketsChart = null;
@@ -1136,13 +1162,14 @@ async function carregarDashboard() {
   const qs = new URLSearchParams(Object.fromEntries(Object.entries(backendFiltros).filter(([,v]) => v))).toString();
 
   // Load in parallel
-  const [kpisResult, heatmapResult, clientsResult, bottlenecksResult, insightsResult] =
+  const [kpisResult, heatmapResult, clientsResult, bottlenecksResult, insightsResult, top25StatusResult] =
     await Promise.allSettled([
       fetch(`${ENDPOINTS.kpis}${qs ? '?' + qs : ''}`, { headers }).then(r => r.json()).catch(() => null),
       fetch(`${ENDPOINTS.heatmap}${qs ? '?' + qs : ''}`, { headers }).then(r => r.json()).catch(() => null),
       fetch(`${ENDPOINTS.clients}${qs ? '?' + qs : ''}`, { headers }).then(r => r.json()).catch(() => null),
       fetch(`${ENDPOINTS.bottlenecks}${qs ? '?' + qs : ''}`, { headers }).then(r => r.json()).catch(() => null),
       fetch(`${ENDPOINTS.insights}`, { headers }).then(r => r.json()).catch(() => null),
+      fetch(`${ENDPOINTS.top25Status}`, { headers }).then(r => r.json()).catch(() => null),
     ]);
 
   document.getElementById('kpi-grid').style.opacity = '1';
@@ -1153,6 +1180,7 @@ async function carregarDashboard() {
   const clients     = clientsResult.value;
   const bottlenecks = bottlenecksResult.value;
   const insights    = insightsResult.value;
+  const top25Status = top25StatusResult.value;
 
   // Salvar em cache para aba Alertas
   if (kpis)        cachedKpis        = kpis;
@@ -1166,6 +1194,7 @@ async function carregarDashboard() {
   if (clients)     { renderTopClients(clients, priorityFilter); renderAlerts(clients, priorityFilter); }
   if (bottlenecks) renderBottlenecks(bottlenecks);
   if (insights)    renderInsights(insights);
+  renderTop25StatusTable(top25Status);
 
   renderTimeSeries(kpis);
 
@@ -1174,6 +1203,42 @@ async function carregarDashboard() {
 
   const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   document.getElementById('last-update').textContent = `Atualizado: ${now}`;
+}
+
+// ============================================================
+// TOP 25 CLIENTES — STATUS TABLE
+// ============================================================
+function renderTop25StatusTable(data) {
+  const tbody = document.getElementById('top25-status-body');
+  if (!tbody) return;
+
+  if (!data || !Array.isArray(data.clientes) || !data.clientes.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500">Dados indisponíveis</td></tr>';
+    return;
+  }
+
+  const badge = (val, color, warnAt) => {
+    if (!val) return `<span class="text-slate-600">0</span>`;
+    const bold = val >= warnAt ? 'font-weight:700' : '';
+    return `<span style="color:${color};${bold}">${val}</span>`;
+  };
+
+  tbody.innerHTML = data.clientes.map((c, i) => {
+    const rowBg = i % 2 !== 0 ? 'background:rgba(255,255,255,0.02)' : '';
+    return `<tr style="${rowBg}" class="border-b border-slate-800/50">
+      <td class="py-2 px-3 text-slate-300">${c.nome}</td>
+      <td class="py-2 px-3 text-center">${badge(c.open,    '#ef4444', 3)}</td>
+      <td class="py-2 px-3 text-center">${badge(c.pending, '#f59e0b', 5)}</td>
+      <td class="py-2 px-3 text-center">${badge(c.hold,    '#3b82f6', 5)}</td>
+      <td class="py-2 px-3 text-center text-slate-400">${c.solved  || 0}</td>
+      <td class="py-2 px-3 text-center text-slate-500">${c.closed  || 0}</td>
+    </tr>`;
+  }).join('');
+
+  const refEl = document.getElementById('top25-ref-time');
+  if (refEl && data.generatedAt) {
+    refEl.textContent = 'ref: ' + new Date(data.generatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
 }
 
 // ============================================================
