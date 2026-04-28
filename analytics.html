@@ -1371,12 +1371,15 @@ async function loadData() {
       return true;
     });
 
-    // Feedback: normalize assertiva to boolean robustly
+    // Feedback: normalize assertiva to boolean robustly + include V5.2.1 fields
     const rawFb = [...(jsonFbV3.result || []), ...(jsonFbV5.result || [])];
     feedbackData = rawFb.map(unwrap).filter(v => v && v.nota !== undefined).map(f => ({
       ...f,
       assertiva: f.assertiva === true || f.assertiva === 'true' || f.assertiva === 1,
-      nota: Number(f.nota)
+      nota: Number(f.nota),
+      classificacao: f.classificacao || null,
+      comentario: f.comentario || null,
+      erro_detectado: f.erro_detectado || null
     }));
     feedbackData.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
 
@@ -1644,6 +1647,63 @@ function renderFeedbackCharts() {
       </div>
     </div>
   `;
+
+  // V5.2.1 — Novos KPIs: % com comentário + top erros por analista
+  const comComentario = d.filter(f => f.comentario && f.comentario.trim().length > 0).length;
+  const pctComentario = total ? Math.round((comComentario / total) * 100) : 0;
+
+  const erroCount = {};
+  d.forEach(f => {
+    const err = f.erro_detectado;
+    if (err && err !== 'sem_acao') {
+      erroCount[err] = (erroCount[err] || 0) + 1;
+    }
+  });
+  const topErros = Object.entries(erroCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  const erroLabels = {
+    alucinacao: 'Alucinação', informacao_incorreta: 'Informação incorreta',
+    resposta_generica: 'Resposta genérica', contexto_insuficiente: 'Contexto insuficiente',
+    incompleto: 'Resposta incompleta', fora_do_escopo: 'Fora do escopo', sem_acao: 'Sem ação'
+  };
+  const erroColors = {
+    alucinacao: '#ef4444', informacao_incorreta: '#f97316',
+    resposta_generica: '#f59e0b', contexto_insuficiente: '#6366f1',
+    incompleto: '#8b5cf6', fora_do_escopo: '#6b7280'
+  };
+
+  const topErrosHtml = topErros.length
+    ? topErros.map(([err, n]) => `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6;">
+          <div style="flex:1;font-size:13px;color:#374151;">${erroLabels[err] || err}</div>
+          <div style="font-size:13px;font-weight:700;color:${erroColors[err] || '#374151'};">${n}</div>
+          <div style="width:60px;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;">
+            <div style="height:100%;border-radius:3px;background:${erroColors[err] || '#6b7280'};width:${Math.round(n/total*100*3)}%;max-width:100%;"></div>
+          </div>
+        </div>`).join('')
+    : '<div style="color:#9ca3af;font-size:13px;padding:12px 0;">Nenhum erro detectado nos comentários ainda.</div>';
+
+  // Append these metrics to feedback-resumo-kpis
+  const existingFbKpis = document.getElementById('feedback-resumo-kpis');
+  if (existingFbKpis) {
+    existingFbKpis.innerHTML += `
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f3f4f6;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 4px;margin-bottom:16px;">
+          <div style="background:#fdf4ff;border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:28px;font-weight:800;color:#7c3aed;">${pctComentario}%</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Com comentário do analista</div>
+          </div>
+          <div style="background:#fff7ed;border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:28px;font-weight:800;color:#ea580c;">${topErros.length}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Tipos de erro identificados</div>
+          </div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Top Erros — Percepção do Analista</div>
+        ${topErrosHtml}
+      </div>`;
+  }
 }
 
 // ============================================================

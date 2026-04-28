@@ -793,6 +793,114 @@
       font-weight: 600;
     }
 
+    /* V5.2.1 — Feedback ampliado */
+    .feedback-widget { max-width: 420px; }
+    .feedback-cls-row { display: flex; gap: 5px; }
+    .feedback-btn-cls {
+      flex: 1;
+      padding: 5px 4px;
+      border-radius: 7px;
+      border: 1.5px solid #d1d5db;
+      background: white;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .feedback-btn-cls:hover { border-color: #6b7280; }
+    .feedback-btn-cls.cls-assertiva { background: #dcfce7; border-color: #16a34a; color: #15803d; }
+    .feedback-btn-cls.cls-parcial   { background: #fef3c7; border-color: #d97706; color: #92400e; }
+    .feedback-btn-cls.cls-incorreta { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+    .feedback-comentario { display: none; flex-direction: column; gap: 4px; }
+    .feedback-comentario.visible { display: flex; }
+    .feedback-comentario-label {
+      font-size: 11px;
+      color: #6b7280;
+      font-weight: 600;
+    }
+    .feedback-comentario-label .req { color: #dc2626; }
+    .feedback-comentario textarea {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 56px;
+      outline: none;
+      color: #374151;
+      transition: border-color 0.2s;
+    }
+    .feedback-comentario textarea:focus { border-color: #1a56db; }
+    .feedback-comentario textarea.invalid { border-color: #dc2626; }
+
+    /* V5.2.1 — Pre-chat ticket dialog */
+    .chat-ticket-dialog {
+      background: #f0f6ff;
+      border: 1.5px solid #bfdbfe;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 16px auto;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .chat-ticket-dialog.hidden { display: none; }
+    .ctd-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e40af;
+    }
+    .ctd-sub {
+      font-size: 12px;
+      color: #374151;
+    }
+    .ctd-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    .ctd-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1.5px solid #bfdbfe;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      color: #111827;
+    }
+    .ctd-input:focus { border-color: #1a56db; }
+    .ctd-btn-confirm {
+      padding: 8px 14px;
+      background: #1a56db;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ctd-btn-confirm:hover { background: #1e40af; }
+    .ctd-btn-skip {
+      align-self: flex-start;
+      background: transparent;
+      border: none;
+      font-size: 12px;
+      color: #6b7280;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0;
+    }
+
+    /* V5.2.1 — Feedback in Consulta Rápida */
+    .feedback-rapida-wrap {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px dashed #e5e7eb;
+    }
+
     .chat-input-bar {
       background: white;
       border-top: 1px solid #e5e7eb;
@@ -1153,6 +1261,7 @@
       </div>
       <div id="respostaConteudoR"></div>
       <div class="meta-info" id="metaInfoR"></div>
+      <div class="feedback-rapida-wrap" id="feedbackRapidaWrap" style="display:none;"></div>
     </div>
 
   </div>
@@ -1175,6 +1284,15 @@
       <div class="welcome-icon">&#128075;</div>
       <h3>Olá! Sou a MarIA V5.</h3>
       <p>Motor de diagnóstico FitBank. Consulte com ticket_id para ativar memória.</p>
+    </div>
+    <div class="chat-ticket-dialog" id="chatTicketDialog">
+      <div class="ctd-title">📋 Você tem o número do ticket no Zendesk?</div>
+      <div class="ctd-sub">Isso me ajuda a analisar o contexto completo do problema, histórico e status.</div>
+      <div class="ctd-input-row">
+        <input class="ctd-input" id="ctdTicketInput" type="text" placeholder="Ex: ZD-12345 ou INC-456" onkeydown="if(event.key==='Enter') confirmarTicketContexto()" />
+        <button class="ctd-btn-confirm" onclick="confirmarTicketContexto()">Confirmar</button>
+      </div>
+      <button class="ctd-btn-skip" onclick="pularTicketContexto()">Continuar sem ticket</button>
     </div>
   </div>
 
@@ -1352,9 +1470,9 @@
     document.getElementById('resultadoCardR').style.display = 'none';
     document.getElementById('erroCardR').style.display = 'none';
 
-    const payload = { question: pergunta };
-    const ticketId = document.getElementById('ticketIdR').value.trim() || undefined;
-    if (ticketId) payload.ticket_id = ticketId;
+    const ticketId = document.getElementById('ticketIdR').value.trim() || ('rapida-' + Date.now());
+    const payload = { question: pergunta, ticket_id: ticketId };
+    document.getElementById('feedbackRapidaWrap').style.display = 'none';
 
     try {
       const res = await fetch(WEBHOOK_V5, {
@@ -1365,6 +1483,14 @@
       if (!res.ok) throw new Error('Erro HTTP ' + res.status + ': ' + res.statusText);
       const data = await res.json();
       if (!data.sucesso) throw new Error(data.erro || 'Resposta inválida do agente.');
+      const meta = data.metadados || {};
+      _rapida_ctx = {
+        ticket_id: ticketId,
+        pergunta: pergunta,
+        eval_score: meta.eval_score || '',
+        eval_classificacao: meta.eval_classificacao || '',
+        msg_timestamp: new Date().toISOString()
+      };
       renderizarRespostaRapida(data);
     } catch (err) {
       document.getElementById('erroMensagemR').textContent = err.message;
@@ -1375,6 +1501,8 @@
       btnTexto.textContent = 'Consultar Agente';
     }
   }
+
+  let _rapida_ctx = null; // context for Consulta Rápida feedback
 
   function renderizarRespostaRapida(data) {
     const resposta = data.resposta || '';
@@ -1398,6 +1526,12 @@
     if (meta.timestamp) metaHtml += '<span>🕐 ' + new Date(meta.timestamp).toLocaleTimeString('pt-BR') + '</span>';
     document.getElementById('metaInfoR').innerHTML = metaHtml;
 
+    // Feedback widget V5.2.1
+    const fbWrap = document.getElementById('feedbackRapidaWrap');
+    const fbId = 'fbr-' + Date.now();
+    fbWrap.innerHTML = criarFeedbackWidget(fbId, _rapida_ctx);
+    fbWrap.style.display = 'block';
+
     document.getElementById('resultadoCardR').style.display = 'block';
     document.getElementById('resultadoCardR').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -1411,6 +1545,7 @@
   // ============================================================
   let chatSessionId = null;
   let chatIsLoading = false;
+  let chatZendeskTicket = null; // ticket number confirmed by user
 
   function gerarSessionId() {
     return 'chat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
@@ -1418,19 +1553,68 @@
 
   function iniciarSessaoChat() {
     chatSessionId = gerarSessionId();
+    chatZendeskTicket = null;
+    document.getElementById('chatSessionLabel').textContent = 'Diagnóstico guiado com memória';
+    // Show ticket dialog
+    const dialog = document.getElementById('chatTicketDialog');
+    if (dialog) {
+      dialog.classList.remove('hidden');
+      const input = document.getElementById('ctdTicketInput');
+      if (input) { input.value = ''; setTimeout(() => input.focus(), 100); }
+    }
+  }
+
+  function confirmarTicketContexto() {
+    const input = document.getElementById('ctdTicketInput');
+    const ticketVal = input ? input.value.trim() : '';
+    const dialog = document.getElementById('chatTicketDialog');
+    if (dialog) dialog.classList.add('hidden');
+
+    if (ticketVal) {
+      chatSessionId = ticketVal;
+      chatZendeskTicket = ticketVal;
+      document.getElementById('chatSessionLabel').textContent = 'Ticket: ' + ticketVal;
+      // Show confirmation in chat
+      const msgDiv = document.createElement('div');
+      msgDiv.style.cssText = 'text-align:center;font-size:12px;color:#1a56db;padding:8px 0;font-weight:600;';
+      msgDiv.textContent = '📋 Contexto do ticket ' + ticketVal + ' será considerado na análise.';
+      document.getElementById('chatMessages').appendChild(msgDiv);
+    } else {
+      pularTicketContexto();
+    }
+  }
+
+  function pularTicketContexto() {
+    const dialog = document.getElementById('chatTicketDialog');
+    if (dialog) dialog.classList.add('hidden');
+    chatZendeskTicket = null;
     document.getElementById('chatSessionLabel').textContent = 'Diagnóstico guiado com memória';
   }
 
   function novaConversa() {
     chatSessionId = gerarSessionId();
+    chatZendeskTicket = null;
     document.getElementById('chatMessages').innerHTML =
       '<div class="chat-welcome" id="chatWelcome">' +
         '<div class="welcome-icon">✨</div>' +
         '<h3>Nova conversa iniciada!</h3>' +
         '<p>Me descreva o problema do cliente.</p>' +
+      '</div>' +
+      '<div class="chat-ticket-dialog" id="chatTicketDialog">' +
+        '<div class="ctd-title">📋 Você tem o número do ticket no Zendesk?</div>' +
+        '<div class="ctd-sub">Isso me ajuda a analisar o contexto completo do problema.</div>' +
+        '<div class="ctd-input-row">' +
+          '<input class="ctd-input" id="ctdTicketInput" type="text" placeholder="Ex: ZD-12345" onkeydown="if(event.key===\'Enter\') confirmarTicketContexto()" />' +
+          '<button class="ctd-btn-confirm" onclick="confirmarTicketContexto()">Confirmar</button>' +
+        '</div>' +
+        '<button class="ctd-btn-skip" onclick="pularTicketContexto()">Continuar sem ticket</button>' +
       '</div>';
     document.getElementById('chatExamples').style.display = 'flex';
     document.getElementById('chatSessionLabel').textContent = 'Diagnóstico guiado com memória';
+    setTimeout(() => {
+      const input = document.getElementById('ctdTicketInput');
+      if (input) input.focus();
+    }, 100);
   }
 
   function enviarExemploChat(texto) {
@@ -1494,9 +1678,176 @@
   }
 
   // ── Feedback state ──────────────────────────────────────────────────────────
-  let _fbMsgTs = null;   // timestamp da última resposta (para vincular ao eval)
-  let _fbEvalScore = null;
-  let _fbEvalClass = null;
+  // ============================================================
+  // FEEDBACK V5.2.1 — widget compartilhado (Chat + Consulta Rápida)
+  // ============================================================
+
+  function detectError(comment) {
+    if (!comment || !comment.trim()) return 'sem_acao';
+    const c = comment.toLowerCase();
+    if (/alucin|inventou|mentiu|inexist|não exist|hallucin/.test(c))              return 'alucinacao';
+    if (/incorret|errad|errou|falso|wrong|informação errada|dado errado/.test(c)) return 'informacao_incorreta';
+    if (/genéric|generic|vago|superficial|sem detalhe/.test(c))                   return 'resposta_generica';
+    if (/context|histórico|ticket|não conhece|sem contexto|não tem contexto/.test(c)) return 'contexto_insuficiente';
+    if (/incompleto|faltou|faltando|não respondeu|incompleta/.test(c))             return 'incompleto';
+    if (/fora do escopo|não é sobre|irrelevante|tema errado/.test(c))              return 'fora_do_escopo';
+    return 'sem_acao';
+  }
+
+  function criarFeedbackWidget(id, ctx) {
+    // ctx = { ticket_id, pergunta, eval_score, eval_classificacao, msg_timestamp }
+    const ctxAttr = ctx ? ' data-ctx="' + escapeHtml(JSON.stringify(ctx)) + '"' : '';
+    return (
+      `<div class="feedback-widget" id="${id}"${ctxAttr}>` +
+        '<div class="feedback-label">Esta resposta foi assertiva?</div>' +
+        '<div class="feedback-assertiva">' +
+          `<button class="feedback-btn-ass" onclick="selecionarAssertiva('${id}', true)">✅ Sim</button>` +
+          `<button class="feedback-btn-ass" onclick="selecionarAssertiva('${id}', false)">❌ Não</button>` +
+        '</div>' +
+        '<div class="feedback-notas" style="margin-top:2px;">' +
+          '<span class="feedback-nota-label">Nota:</span>' +
+          [1,2,3,4,5].map(n =>
+            `<button class="feedback-btn-nota" onclick="selecionarNota('${id}',${n})">${n}</button>`
+          ).join('') +
+        '</div>' +
+        '<div style="margin-top:2px;">' +
+          '<span class="feedback-nota-label">Classificação:</span>' +
+        '</div>' +
+        '<div class="feedback-cls-row">' +
+          `<button class="feedback-btn-cls" onclick="selecionarClassificacao('${id}','ASSERTIVA')">✅ Assertiva</button>` +
+          `<button class="feedback-btn-cls" onclick="selecionarClassificacao('${id}','PARCIAL')">⚠️ Parcial</button>` +
+          `<button class="feedback-btn-cls" onclick="selecionarClassificacao('${id}','INCORRETA')">❌ Incorreta</button>` +
+        '</div>' +
+        '<div class="feedback-comentario" id="' + id + '-com">' +
+          '<span class="feedback-comentario-label">Comentário <span class="req">*</span></span>' +
+          `<textarea id="${id}-textarea" placeholder="Descreva o que estava errado ou poderia melhorar..." oninput="_onComentarioInput('${id}')"></textarea>` +
+        '</div>' +
+        `<button class="feedback-enviar" onclick="enviarFeedback('${id}')" disabled>Enviar feedback</button>` +
+      '</div>'
+    );
+  }
+
+  function selecionarAssertiva(id, valor) {
+    const w = document.getElementById(id);
+    if (!w || w.classList.contains('done')) return;
+    w.querySelectorAll('.feedback-btn-ass').forEach(b => b.classList.remove('sel-sim','sel-nao'));
+    w.querySelectorAll('.feedback-btn-ass')[valor ? 0 : 1].classList.add(valor ? 'sel-sim' : 'sel-nao');
+    w.dataset.assertiva = valor ? 'true' : 'false';
+    // Auto-suggest classificação
+    if (valor && !w.dataset.classificacao) selecionarClassificacao(id, 'ASSERTIVA');
+    if (!valor) _mostrarComentario(id);
+    _atualizarBtnEnviar(w);
+  }
+
+  function selecionarNota(id, nota) {
+    const w = document.getElementById(id);
+    if (!w || w.classList.contains('done')) return;
+    w.querySelectorAll('.feedback-btn-nota').forEach(b => b.classList.remove('sel'));
+    w.querySelectorAll('.feedback-btn-nota')[nota - 1].classList.add('sel');
+    w.dataset.nota = nota;
+    if (Number(nota) <= 3) _mostrarComentario(id);
+    _atualizarBtnEnviar(w);
+  }
+
+  function selecionarClassificacao(id, cls) {
+    const w = document.getElementById(id);
+    if (!w || w.classList.contains('done')) return;
+    w.querySelectorAll('.feedback-btn-cls').forEach(b =>
+      b.classList.remove('cls-assertiva','cls-parcial','cls-incorreta')
+    );
+    const map = { ASSERTIVA: 'cls-assertiva', PARCIAL: 'cls-parcial', INCORRETA: 'cls-incorreta' };
+    const btn = Array.from(w.querySelectorAll('.feedback-btn-cls')).find(b =>
+      b.textContent.includes(cls === 'ASSERTIVA' ? 'Assertiva' : cls === 'PARCIAL' ? 'Parcial' : 'Incorreta')
+    );
+    if (btn) btn.classList.add(map[cls]);
+    w.dataset.classificacao = cls;
+    if (cls === 'PARCIAL' || cls === 'INCORRETA') _mostrarComentario(id);
+    _atualizarBtnEnviar(w);
+  }
+
+  function _mostrarComentario(id) {
+    const com = document.getElementById(id + '-com');
+    if (com) com.classList.add('visible');
+  }
+
+  function _onComentarioInput(id) {
+    const w = document.getElementById(id);
+    const ta = document.getElementById(id + '-textarea');
+    if (ta) ta.classList.remove('invalid');
+    _atualizarBtnEnviar(w);
+  }
+
+  function _atualizarBtnEnviar(w) {
+    const btn = w.querySelector('.feedback-enviar');
+    const hasAssertiva = w.dataset.assertiva !== undefined;
+    const hasNota = !!w.dataset.nota;
+    const hasClasse = !!w.dataset.classificacao;
+    const comRequired = _comentarioRequired(w);
+    const ta = w.querySelector('textarea');
+    const hasComentario = ta && ta.value.trim().length > 0;
+    btn.disabled = !(hasAssertiva && hasNota && hasClasse && (!comRequired || hasComentario));
+  }
+
+  function _comentarioRequired(w) {
+    const nota = Number(w.dataset.nota);
+    const assertiva = w.dataset.assertiva;
+    const cls = w.dataset.classificacao;
+    return (assertiva === 'false') || (nota > 0 && nota <= 3) || cls === 'INCORRETA' || cls === 'PARCIAL';
+  }
+
+  async function enviarFeedback(id) {
+    const w = document.getElementById(id);
+    if (!w || w.classList.contains('done')) return;
+
+    const ta = w.querySelector('textarea');
+    const comentario = ta ? ta.value.trim() : '';
+
+    if (_comentarioRequired(w) && !comentario) {
+      if (ta) ta.classList.add('invalid');
+      ta.focus();
+      return;
+    }
+
+    const btn = w.querySelector('.feedback-enviar');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    // Read context stored as JSON in data-ctx attribute
+    let ctx = {};
+    try { ctx = JSON.parse(w.dataset.ctx || '{}'); } catch {}
+    const ticketId      = ctx.ticket_id       || chatSessionId;
+    const pergunta      = ctx.pergunta        || '';
+    const evalScore     = ctx.eval_score      || null;
+    const evalClasse    = ctx.eval_classificacao || null;
+    const msgTs         = ctx.msg_timestamp   || new Date().toISOString();
+    const erroDetectado = detectError(comentario);
+
+    try {
+      await fetch(WEBHOOK_V5, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'feedback',
+          versao: 'V5',
+          ticket_id: ticketId,
+          nota: Number(w.dataset.nota),
+          assertiva: w.dataset.assertiva === 'true',
+          classificacao: w.dataset.classificacao || null,
+          comentario: comentario || null,
+          erro_detectado: erroDetectado,
+          pergunta: pergunta || null,
+          msg_timestamp: msgTs,
+          eval_score: evalScore ? Number(evalScore) : null,
+          eval_classificacao: evalClasse
+        })
+      });
+      w.classList.add('done');
+      w.innerHTML = '<div class="feedback-done-msg">✅ Obrigado! Feedback registrado e enviado ao Learning Engine.</div>';
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Enviar feedback';
+    }
+  }
 
   function adicionarMensagemMarIA(data) {
     const resposta = data.resposta || '';
@@ -1518,11 +1869,14 @@
     if (meta.zendesk_utilizados !== undefined) metaTexto += '📚 Zendesk: ' + meta.zendesk_utilizados + '  ';
     if (meta.tokens_usados) metaTexto += '⚡ ' + meta.tokens_usados + ' tokens  ·  ';
 
-    _fbMsgTs = new Date().toISOString();
-    _fbEvalScore = meta.eval_score || null;
-    _fbEvalClass = meta.eval_classificacao || null;
-
+    const msgTs = new Date().toISOString();
     const widgetId = 'fb-' + Date.now();
+    const ctx = {
+      ticket_id: chatSessionId,
+      eval_score: meta.eval_score || '',
+      eval_classificacao: meta.eval_classificacao || '',
+      msg_timestamp: msgTs
+    };
 
     const row = document.createElement('div');
     row.className = 'msg-row maria';
@@ -1531,82 +1885,10 @@
       '<div>' +
         '<div class="msg-bubble">' + conteudo + '</div>' +
         '<div class="msg-time">' + metaTexto + horaAtual() + '</div>' +
-        criarFeedbackWidget(widgetId) +
+        criarFeedbackWidget(widgetId, ctx) +
       '</div>';
     document.getElementById('chatMessages').appendChild(row);
     scrollChat();
-  }
-
-  function criarFeedbackWidget(id) {
-    return (
-      '<div class="feedback-widget" id="' + id + '">' +
-        '<div class="feedback-label">Esta resposta foi assertiva?</div>' +
-        '<div class="feedback-assertiva">' +
-          '<button class="feedback-btn-ass" onclick="selecionarAssertiva(\'' + id + '\', true)">✅ Sim</button>' +
-          '<button class="feedback-btn-ass" onclick="selecionarAssertiva(\'' + id + '\', false)">❌ Não</button>' +
-        '</div>' +
-        '<div class="feedback-notas">' +
-          '<span class="feedback-nota-label">Nota:</span>' +
-          [1,2,3,4,5].map(n =>
-            '<button class="feedback-btn-nota" onclick="selecionarNota(\'' + id + '\',' + n + ')">' + n + '</button>'
-          ).join('') +
-        '</div>' +
-        '<button class="feedback-enviar" onclick="enviarFeedback(\'' + id + '\')" disabled>Enviar</button>' +
-      '</div>'
-    );
-  }
-
-  function selecionarAssertiva(id, valor) {
-    const w = document.getElementById(id);
-    if (!w || w.classList.contains('done')) return;
-    w.querySelectorAll('.feedback-btn-ass').forEach(b => b.classList.remove('sel-sim','sel-nao'));
-    const btns = w.querySelectorAll('.feedback-btn-ass');
-    btns[valor ? 0 : 1].classList.add(valor ? 'sel-sim' : 'sel-nao');
-    w.dataset.assertiva = valor ? 'true' : 'false';
-    _atualizarBtnEnviar(w);
-  }
-
-  function selecionarNota(id, nota) {
-    const w = document.getElementById(id);
-    if (!w || w.classList.contains('done')) return;
-    w.querySelectorAll('.feedback-btn-nota').forEach(b => b.classList.remove('sel'));
-    w.querySelectorAll('.feedback-btn-nota')[nota - 1].classList.add('sel');
-    w.dataset.nota = nota;
-    _atualizarBtnEnviar(w);
-  }
-
-  function _atualizarBtnEnviar(w) {
-    const btn = w.querySelector('.feedback-enviar');
-    btn.disabled = !(w.dataset.assertiva !== undefined && w.dataset.nota);
-  }
-
-  async function enviarFeedback(id) {
-    const w = document.getElementById(id);
-    if (!w || w.classList.contains('done')) return;
-    const btn = w.querySelector('.feedback-enviar');
-    btn.disabled = true;
-    btn.textContent = 'Enviando...';
-    try {
-      await fetch(WEBHOOK_V5, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'feedback',
-          versao: 'V5',
-          ticket_id: chatSessionId,
-          nota: Number(w.dataset.nota),
-          assertiva: w.dataset.assertiva === 'true',
-          msg_timestamp: _fbMsgTs,
-          eval_score: _fbEvalScore,
-          eval_classificacao: _fbEvalClass
-        })
-      });
-      w.classList.add('done');
-      w.innerHTML = '<div class="feedback-done-msg">✅ Obrigado pelo feedback!</div>';
-    } catch (e) {
-      btn.disabled = false;
-      btn.textContent = 'Enviar';
-    }
   }
 
   function scrollChat() {
@@ -1634,7 +1916,11 @@
       const res = await fetch(WEBHOOK_V5, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: texto, ticket_id: chatSessionId })
+        body: JSON.stringify({
+          question: texto,
+          ticket_id: chatSessionId,
+          zendesk_ticket: chatZendeskTicket || undefined
+        })
       });
       if (!res.ok) throw new Error('Erro HTTP ' + res.status);
       const data = await res.json();
