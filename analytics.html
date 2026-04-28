@@ -801,7 +801,7 @@
       <div class="header-logo">M</div>
       <div>
         <div class="header-title">MarIA Analytics</div>
-        <div class="header-subtitle">V3 + V5 — FitBank</div>
+        <div class="header-subtitle">V3 + V5.2 — FitBank</div>
       </div>
     </div>
 
@@ -1135,7 +1135,7 @@ function getFilteredData() {
   // Filter by version
   let d = currentVersion === 'todas'
     ? evalsData
-    : evalsData.filter(e => (e.versao || '').toLowerCase() === currentVersion);
+    : evalsData.filter(e => (e.versao || '').toLowerCase().startsWith(currentVersion));
 
   // Filter by date
   if (datePreset === 'todos') return d;
@@ -1389,9 +1389,9 @@ async function loadData() {
     loadLearningRecommendations();
 
     const v3count = evalsData.filter(e => e.versao === 'V3').length;
-    const v5count = evalsData.filter(e => e.versao === 'V5').length;
+    const v5count = evalsData.filter(e => (e.versao || '').startsWith('V5')).length;
     document.getElementById('last-update-label').textContent =
-      `Última atualização: ${new Date().toLocaleString('pt-BR')} — V3: ${v3count} | V5: ${v5count} avaliações | Feedbacks: ${feedbackData.length}`;
+      `Última atualização: ${new Date().toLocaleString('pt-BR')} — V3: ${v3count} | V5.2: ${v5count} avaliações | Feedbacks: ${feedbackData.length}`;
     updateDateActiveLabel();
 
   } catch (e) {
@@ -1507,7 +1507,7 @@ function renderAll() {
 // ============================================================
 function getFeedbackFiltered() {
   let d = feedbackData;
-  if (currentVersion !== 'todas') d = d.filter(f => (f.versao || '').toLowerCase() === currentVersion);
+  if (currentVersion !== 'todas') d = d.filter(f => (f.versao || '').toLowerCase().startsWith(currentVersion));
   return d;
 }
 
@@ -2210,7 +2210,7 @@ let learningClusters = null;
 let learningRecommendations = null;
 
 function computeClusters(evals) {
-  const v5Evals = evals.filter(e => (e.versao || '').toUpperCase() === 'V5');
+  const v5Evals = evals.filter(e => (e.versao || '').toUpperCase().startsWith('V5'));
   if (v5Evals.length === 0) return [];
 
   const groups = {};
