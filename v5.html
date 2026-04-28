@@ -731,24 +731,6 @@
       font-weight: 600;
       color: #374151;
     }
-    .feedback-assertiva {
-      display: flex;
-      gap: 6px;
-    }
-    .feedback-btn-ass {
-      flex: 1;
-      padding: 5px 0;
-      border-radius: 7px;
-      border: 1.5px solid #d1d5db;
-      background: white;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .feedback-btn-ass:hover { border-color: #1a56db; color: #1a56db; }
-    .feedback-btn-ass.sel-sim { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
-    .feedback-btn-ass.sel-nao { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
     .feedback-notas {
       display: flex;
       gap: 5px;
@@ -1699,24 +1681,17 @@
     const ctxAttr = ctx ? ' data-ctx="' + escapeHtml(JSON.stringify(ctx)) + '"' : '';
     return (
       `<div class="feedback-widget" id="${id}"${ctxAttr}>` +
-        '<div class="feedback-label">Esta resposta foi assertiva?</div>' +
-        '<div class="feedback-assertiva">' +
-          `<button class="feedback-btn-ass" onclick="selecionarAssertiva('${id}', true)">✅ Sim</button>` +
-          `<button class="feedback-btn-ass" onclick="selecionarAssertiva('${id}', false)">❌ Não</button>` +
-        '</div>' +
-        '<div class="feedback-notas" style="margin-top:2px;">' +
-          '<span class="feedback-nota-label">Nota:</span>' +
-          [1,2,3,4,5].map(n =>
-            `<button class="feedback-btn-nota" onclick="selecionarNota('${id}',${n})">${n}</button>`
-          ).join('') +
-        '</div>' +
-        '<div style="margin-top:2px;">' +
-          '<span class="feedback-nota-label">Classificação:</span>' +
-        '</div>' +
+        '<div class="feedback-label">Como você classifica esta resposta?</div>' +
         '<div class="feedback-cls-row">' +
           `<button class="feedback-btn-cls" onclick="selecionarClassificacao('${id}','ASSERTIVA')">✅ Assertiva</button>` +
           `<button class="feedback-btn-cls" onclick="selecionarClassificacao('${id}','PARCIAL')">⚠️ Parcial</button>` +
           `<button class="feedback-btn-cls" onclick="selecionarClassificacao('${id}','INCORRETA')">❌ Incorreta</button>` +
+        '</div>' +
+        '<div class="feedback-notas">' +
+          '<span class="feedback-nota-label">Nota:</span>' +
+          [1,2,3,4,5].map(n =>
+            `<button class="feedback-btn-nota" onclick="selecionarNota('${id}',${n})">${n}</button>`
+          ).join('') +
         '</div>' +
         '<div class="feedback-comentario" id="' + id + '-com">' +
           '<span class="feedback-comentario-label">Comentário <span class="req">*</span></span>' +
@@ -1725,18 +1700,6 @@
         `<button class="feedback-enviar" onclick="enviarFeedback('${id}')" disabled>Enviar feedback</button>` +
       '</div>'
     );
-  }
-
-  function selecionarAssertiva(id, valor) {
-    const w = document.getElementById(id);
-    if (!w || w.classList.contains('done')) return;
-    w.querySelectorAll('.feedback-btn-ass').forEach(b => b.classList.remove('sel-sim','sel-nao'));
-    w.querySelectorAll('.feedback-btn-ass')[valor ? 0 : 1].classList.add(valor ? 'sel-sim' : 'sel-nao');
-    w.dataset.assertiva = valor ? 'true' : 'false';
-    // Auto-suggest classificação
-    if (valor && !w.dataset.classificacao) selecionarClassificacao(id, 'ASSERTIVA');
-    if (!valor) _mostrarComentario(id);
-    _atualizarBtnEnviar(w);
   }
 
   function selecionarNota(id, nota) {
@@ -1761,6 +1724,7 @@
     );
     if (btn) btn.classList.add(map[cls]);
     w.dataset.classificacao = cls;
+    w.dataset.assertiva = cls === 'ASSERTIVA' ? 'true' : 'false';
     if (cls === 'PARCIAL' || cls === 'INCORRETA') _mostrarComentario(id);
     _atualizarBtnEnviar(w);
   }
@@ -1779,20 +1743,18 @@
 
   function _atualizarBtnEnviar(w) {
     const btn = w.querySelector('.feedback-enviar');
-    const hasAssertiva = w.dataset.assertiva !== undefined;
     const hasNota = !!w.dataset.nota;
     const hasClasse = !!w.dataset.classificacao;
     const comRequired = _comentarioRequired(w);
     const ta = w.querySelector('textarea');
     const hasComentario = ta && ta.value.trim().length > 0;
-    btn.disabled = !(hasAssertiva && hasNota && hasClasse && (!comRequired || hasComentario));
+    btn.disabled = !(hasNota && hasClasse && (!comRequired || hasComentario));
   }
 
   function _comentarioRequired(w) {
     const nota = Number(w.dataset.nota);
-    const assertiva = w.dataset.assertiva;
     const cls = w.dataset.classificacao;
-    return (assertiva === 'false') || (nota > 0 && nota <= 3) || cls === 'INCORRETA' || cls === 'PARCIAL';
+    return (nota > 0 && nota <= 3) || cls === 'INCORRETA' || cls === 'PARCIAL';
   }
 
   async function enviarFeedback(id) {
