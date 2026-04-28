@@ -1018,9 +1018,9 @@
                 <th>Categoria</th>
                 <th>Score IA</th>
                 <th>Nota Usuário</th>
-                <th>Classificação</th>
-                <th>Erro</th>
-                <th>Motivo</th>
+                <th>Class. Usuário / IA</th>
+                <th>Erro Detectado</th>
+                <th>Motivo / Comentário</th>
               </tr>
             </thead>
             <tbody id="interacoes-body">
@@ -2136,12 +2136,30 @@ function renderInteracoes() {
       ? `<span style="font-weight:700;color:${notaColors[nota]};" title="Nota ${nota}/5">${nota} ${notaLabels[nota]}</span>`
       : `<span style="color:#d1d5db;font-size:11px;">—</span>`;
 
-    // Conflict: IA says ASSERTIVA but user said Não (or vice-versa)
+    // CLASSIFICAÇÃO: prefer user feedback; fall back to IA eval
     const iaAssertiva = cls === 'ASSERTIVA';
-    const hasConflict = fbMatch !== null && (fbMatch.assertiva !== iaAssertiva);
-    const clsBadge = hasConflict
-      ? `<span class="badge ${badgeClass}">${cls.replace('NAO_ASSERTIVA', 'NÃO ASSERTIVA')}</span> <span title="Usuário discorda da IA" style="font-size:11px;background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 5px;font-weight:700;">⚠ conflito</span>`
-      : `<span class="badge ${badgeClass}">${cls.replace('NAO_ASSERTIVA', 'NÃO ASSERTIVA')}</span>`;
+    const uCls = fbMatch && fbMatch.classificacao ? fbMatch.classificacao : null;
+    let clsCell, hasConflict = false;
+    if (uCls) {
+      const uBadge = uCls === 'ASSERTIVA' ? 'badge-assertiva' : uCls === 'INCORRETA' ? 'badge-nao' : 'badge-parcial';
+      hasConflict = (uCls === 'ASSERTIVA') !== iaAssertiva;
+      const iaLabel = cls.replace('NAO_ASSERTIVA', 'N.A.');
+      clsCell = `<span class="badge ${uBadge}">${uCls}</span>` +
+        (hasConflict ? ` <span style="font-size:10px;color:#9ca3af;" title="IA avaliou: ${iaLabel}">vs IA: ${iaLabel}</span>` : '');
+    } else {
+      clsCell = `<span class="badge ${badgeClass}">${cls.replace('NAO_ASSERTIVA', 'NÃO ASSERTIVA')}</span>` +
+        `<span style="font-size:10px;color:#d1d5db;margin-left:3px;">IA</span>`;
+    }
+
+    // ERRO: prefer user's erro_detectado (from comment analysis); fall back to IA eval
+    const erroUser = fbMatch && fbMatch.erro_detectado && fbMatch.erro_detectado !== 'sem_acao'
+      ? fbMatch.erro_detectado : null;
+    const erroCell = erroUser || e.erro_detectado || 'nenhum';
+
+    // MOTIVO: show user comment if available, otherwise IA motivo
+    const motivoCell = (fbMatch && fbMatch.comentario)
+      ? fbMatch.comentario
+      : (e.motivo || '—');
 
     return `<tr${hasConflict ? ' style="background:#fffbeb;"' : ''}>
       <td style="white-space:nowrap;font-size:12px;color:#6b7280;">${formatTS(e.timestamp)}</td>
@@ -2150,9 +2168,9 @@ function renderInteracoes() {
       <td><span style="font-size:12px;font-weight:600;">${e.categoria || 'OUTROS'}</span></td>
       <td style="font-weight:700;color:${scoreColor};">${score.toFixed(2)}</td>
       <td style="text-align:center;">${notaCell}</td>
-      <td>${clsBadge}</td>
-      <td style="font-size:12px;color:#6b7280;">${e.erro_detectado || 'nenhum'}</td>
-      <td style="max-width:200px;font-size:12px;color:#374151;" title="${(e.motivo||'').replace(/"/g,'&quot;')}">${truncate(e.motivo || '—', 70)}</td>
+      <td>${clsCell}</td>
+      <td style="font-size:12px;color:#6b7280;">${erroCell}</td>
+      <td style="max-width:200px;font-size:12px;color:#374151;" title="${(motivoCell).replace(/"/g,'&quot;')}">${truncate(motivoCell, 70)}</td>
     </tr>`;
   }).join('');
 }
