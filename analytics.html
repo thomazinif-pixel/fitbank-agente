@@ -678,6 +678,88 @@
       text-align: right;
       margin-bottom: 16px;
     }
+
+    /* ===== LEARNING TAB V5.2 ===== */
+    .learning-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #374151;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+      margin-top: 8px;
+    }
+
+    .cluster-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .cluster-tag.critico { background: #fee2e2; color: #991b1b; }
+    .cluster-tag.alto    { background: #fef3c7; color: #92400e; }
+    .cluster-tag.medio   { background: #e0f2fe; color: #0369a1; }
+
+    .gap-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .recommendation-card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      border-left: 4px solid #1a56db;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .recommendation-card.tipo-prompt  { border-left-color: #7c3aed; }
+    .recommendation-card.tipo-zendesk { border-left-color: #0891b2; }
+    .recommendation-card.tipo-devops  { border-left-color: #059669; }
+
+    .recommendation-title { font-size: 13px; font-weight: 700; color: #111827; }
+    .recommendation-meta  { font-size: 12px; color: #6b7280; }
+    .recommendation-acao  { font-size: 13px; color: #374151; font-weight: 500; }
+
+    .tipo-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tipo-tag.prompt  { background: #ede9fe; color: #5b21b6; }
+    .tipo-tag.zendesk { background: #e0f2fe; color: #0369a1; }
+    .tipo-tag.devops  { background: #d1fae5; color: #065f46; }
+
+    .priority-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .priority-bar {
+      flex: 1;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .priority-bar-fill { height: 100%; border-radius: 3px; }
+    .priority-bar-fill.high { background: #ef4444; }
+    .priority-bar-fill.mid  { background: #f59e0b; }
+    .priority-bar-fill.low  { background: #10b981; }
+
+    .recom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 768px) { .recom-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -729,6 +811,7 @@
       <button class="tab-btn" onclick="switchTab('feedback')">Feedback Usuários</button>
       <button class="tab-btn" onclick="switchTab('alertas')">Alertas <span id="alerta-count-badge"></span></button>
       <button class="tab-btn" onclick="switchTab('interacoes')">Interações</button>
+      <button class="tab-btn" onclick="switchTab('aprendizado')">Aprendizado V5.2</button>
     </div>
 
     <div class="version-filter">
@@ -946,6 +1029,78 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- TAB: Aprendizado V5.2 -->
+    <div class="tab-panel" id="tab-aprendizado">
+
+      <!-- KPI Row -->
+      <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 24px;">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Clusters</div>
+          <div class="kpi-value" id="lkpi-clusters">—</div>
+          <div class="kpi-sub">grupos de problemas</div>
+        </div>
+        <div class="kpi-card red">
+          <div class="kpi-label">Gaps Críticos</div>
+          <div class="kpi-value" id="lkpi-gaps">—</div>
+          <div class="kpi-sub">requerem atenção</div>
+        </div>
+        <div class="kpi-card yellow">
+          <div class="kpi-label">Priority Score Máx</div>
+          <div class="kpi-value" id="lkpi-priority-max">—</div>
+          <div class="kpi-sub">cluster mais crítico</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Recomendações</div>
+          <div class="kpi-value" id="lkpi-recom">—</div>
+          <div class="kpi-sub">ações identificadas</div>
+        </div>
+      </div>
+
+      <!-- Clusters Table -->
+      <div class="table-card" style="margin-bottom: 24px;">
+        <div class="table-header-row">
+          <div class="table-title">Top Clusters de Problemas</div>
+          <span style="font-size:12px;color:#9ca3af;" id="learning-last-update"></span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Categoria</th>
+                <th>Tipo de Erro</th>
+                <th>Freq</th>
+                <th>Score Médio</th>
+                <th>% Não Assertiva</th>
+                <th>Priority Score</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="clusters-body">
+              <tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:24px;">Clique na aba para carregar clusters.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Recommendations + Chart -->
+      <div class="chart-grid-2">
+        <div>
+          <div class="learning-section-title">Recomendações de Melhoria</div>
+          <div class="recom-grid" id="recom-cards-container">
+            <div style="text-align:center;color:#9ca3af;grid-column:span 2;padding:24px;">Nenhuma recomendação disponível.</div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Assertividade por Categoria</div>
+          <div class="chart-container tall">
+            <canvas id="chart-assertiv-categoria"></canvas>
+          </div>
+        </div>
+      </div>
+
     </div>
 
   </div>
@@ -1173,6 +1328,7 @@ function switchTab(name) {
   event.currentTarget.classList.add('active');
   // Chart.js não renderiza em canvas oculto — re-renderiza ao abrir a aba
   if (name === 'feedback') renderFeedbackCharts();
+  if (name === 'aprendizado') renderAprendizado();
 }
 
 // ============================================================
@@ -1227,6 +1383,7 @@ async function loadData() {
     alertasGerados = computarAlertas(getFilteredData());
     if (!bannerDismissed) updateAlertBanner();
     renderAll();
+    loadLearningRecommendations();
 
     const v3count = evalsData.filter(e => e.versao === 'V3').length;
     const v5count = evalsData.filter(e => e.versao === 'V5').length;
@@ -1291,6 +1448,39 @@ function computarAlertas(evals) {
       });
     }
   }
+
+  // V5.2 — Cluster crítico com GAP detectado
+  const clusters52 = computeClusters(evals);
+  const clusterCritico = clusters52.find(c => c.is_gap && c.priority_score >= 70);
+  if (clusterCritico) {
+    alertas.push({
+      tipo: 'CRITICO',
+      id: `gap-cluster-${clusterCritico.categoria}`,
+      msg: `GAP crítico detectado: ${clusterCritico.categoria} — "${clusterCritico.erro}" (${clusterCritico.nao_pct}% não assertiva, ${clusterCritico.total} ocorrências).`,
+      causa: `Priority Score: ${clusterCritico.priority_score} — Ação: ${(RECOMENDACAO_TEMPLATE[clusterCritico.erro.toLowerCase().replace(/ /g,'_')] || {}).acao || 'Revisar manualmente'}`,
+      ts: new Date().toISOString()
+    });
+  }
+
+  // V5.2 — Erro técnico recorrente (alucinação ou informação incorreta ≥5 em 7 dias)
+  const sete = new Date(); sete.setDate(sete.getDate() - 7);
+  const seteStr = sete.toISOString().slice(0, 10);
+  const recentes7d = evals.filter(e => (e.timestamp || '').slice(0, 10) >= seteStr);
+  const errosTecnicos = recentes7d.filter(e =>
+    ['alucinacao','alucinação','informacao_incorreta','informação_incorreta'].includes(
+      (e.erro_detectado || '').toLowerCase().replace(/ /g, '_')
+    )
+  ).length;
+  if (errosTecnicos >= 5) {
+    alertas.push({
+      tipo: 'CRITICO',
+      id: 'erros-tecnicos-recorrentes',
+      msg: `${errosTecnicos} erros técnicos (alucinação/informação incorreta) nos últimos 7 dias.`,
+      causa: 'Revisar prompt de sistema e base de conhecimento DevOps',
+      ts: new Date().toISOString()
+    });
+  }
+
   return alertas;
 }
 
@@ -1910,6 +2100,215 @@ function renderInteracoes() {
 function truncate(str, len) {
   if (!str) return '—';
   return str.length > len ? str.slice(0, len) + '…' : str;
+}
+
+// ============================================================
+// LEARNING V5.2
+// ============================================================
+const CATEGORIA_IMPACTO = {
+  PIX: 10, BOLETO: 9, API: 8, SALDO: 8, ANTIFRAUDE: 10,
+  CONCILIACAO: 7, 'CONCILIAÇÃO': 7, ONBOARDING: 7, WEBHOOK: 8,
+  CARTAO: 8, 'CARTÃO': 8, OUTROS: 5
+};
+
+const ERRO_SEVERIDADE = {
+  nenhum: 1, contexto_insuficiente: 5, resposta_generica: 5,
+  alucinacao: 9, 'alucinação': 9, informacao_incorreta: 10,
+  'informação_incorreta': 10, fora_do_escopo: 3
+};
+
+const RECOMENDACAO_TEMPLATE = {
+  informacao_incorreta:   { acao: 'Revisar prompt com dado correto para esta categoria',                  tipo: 'prompt'   },
+  'informação_incorreta': { acao: 'Revisar prompt com dado correto para esta categoria',                  tipo: 'prompt'   },
+  contexto_insuficiente:  { acao: 'Adicionar mais tickets Zendesk similares à base Pinecone',             tipo: 'zendesk'  },
+  alucinacao:             { acao: 'Reduzir temperatura GPT e adicionar exemplo negativo ao prompt',       tipo: 'prompt'   },
+  'alucinação':           { acao: 'Reduzir temperatura GPT e adicionar exemplo negativo ao prompt',       tipo: 'prompt'   },
+  resposta_generica:      { acao: 'Adicionar work items DevOps específicos ao Pinecone',                  tipo: 'devops'   },
+  fora_do_escopo:         { acao: 'Adicionar regra de redirecionamento ao prompt de sistema',             tipo: 'prompt'   },
+  nenhum:                 { acao: 'Analisar manualmente os tickets deste cluster',                        tipo: 'prompt'   }
+};
+
+let learningClusters = null;
+let learningRecommendations = null;
+
+function computeClusters(evals) {
+  const v5Evals = evals.filter(e => (e.versao || '').toUpperCase() === 'V5');
+  if (v5Evals.length === 0) return [];
+
+  const groups = {};
+  v5Evals.forEach(e => {
+    const cat = (e.categoria || 'OUTROS').toUpperCase();
+    const err = (e.erro_detectado || 'nenhum').toLowerCase().replace(/ /g, '_');
+    const key = `${cat}||${err}`;
+    if (!groups[key]) {
+      groups[key] = { categoria: e.categoria || 'OUTROS', erro: e.erro_detectado || 'nenhum',
+        total: 0, nao: 0, scores: [], key };
+    }
+    groups[key].total++;
+    if ((e.classificacao || '') === 'NAO_ASSERTIVA') groups[key].nao++;
+    const s = Number(e.score);
+    if (!isNaN(s)) groups[key].scores.push(s);
+  });
+
+  const clusters = Object.values(groups);
+  const maxFreq = Math.max(...clusters.map(c => c.total), 1);
+
+  clusters.forEach(c => {
+    const catKey = c.categoria.toUpperCase()
+      .replace(/Ã/g, 'A').replace(/Â/g, 'A').replace(/Ç/g, 'C').replace(/Ó/g, 'O');
+    const errKey = c.erro.toLowerCase().replace(/ /g, '_');
+    const impacto    = CATEGORIA_IMPACTO[catKey]     || CATEGORIA_IMPACTO[c.categoria.toUpperCase()] || 5;
+    const severidade = ERRO_SEVERIDADE[errKey]        || 3;
+    const freqNorm   = (c.total / maxFreq) * 10;
+    c.priority_score = Math.round(freqNorm * impacto * severidade / 10);
+    c.avg_score  = c.scores.length ? +(c.scores.reduce((a, b) => a + b, 0) / c.scores.length).toFixed(2) : 0;
+    c.nao_pct    = c.total ? Math.round((c.nao / c.total) * 100) : 0;
+    c.is_gap     = c.nao_pct > 40 && c.total >= 3;
+    c.prioridade = c.priority_score >= 70 ? 'CRITICO' : c.priority_score >= 40 ? 'ALTO' : 'MEDIO';
+  });
+
+  clusters.sort((a, b) => b.priority_score - a.priority_score);
+  return clusters.slice(0, 15);
+}
+
+function buildRecommendations(clusters) {
+  return clusters
+    .filter(c => c.is_gap || c.priority_score >= 40)
+    .slice(0, 8)
+    .map((c, i) => {
+      const errKey = c.erro.toLowerCase().replace(/ /g, '_');
+      const tmpl   = RECOMENDACAO_TEMPLATE[errKey] || RECOMENDACAO_TEMPLATE['nenhum'];
+      return {
+        id: i + 1,
+        categoria: c.categoria,
+        erro: c.erro,
+        prioridade: c.prioridade,
+        priority_score: c.priority_score,
+        acao_recomendada: tmpl.acao,
+        tipo_acao: tmpl.tipo,
+        frequencia: c.total,
+        nao_pct: c.nao_pct
+      };
+    });
+}
+
+async function loadLearningRecommendations() {
+  try {
+    const headers = { 'Authorization': `Bearer ${UPSTASH_TOKEN}` };
+    const [rC, rR] = await Promise.all([
+      fetch(`${UPSTASH_URL}/get/maria-v5:learning:clusters`,        { headers }),
+      fetch(`${UPSTASH_URL}/get/maria-v5:learning:recommendations`, { headers })
+    ]);
+    const [jC, jR] = await Promise.all([rC.json(), rR.json()]);
+    if (jC.result) { try { learningClusters       = JSON.parse(jC.result); } catch {} }
+    if (jR.result) { try { learningRecommendations = JSON.parse(jR.result); } catch {} }
+    if (document.getElementById('tab-aprendizado').classList.contains('active')) {
+      renderAprendizado();
+    }
+  } catch {}
+}
+
+function renderAprendizado() {
+  const clusters        = learningClusters        || computeClusters(evalsData);
+  const recommendations = learningRecommendations || buildRecommendations(clusters);
+
+  // KPIs
+  const gaps = clusters.filter(c => c.is_gap).length;
+  const maxP = clusters.length ? clusters[0].priority_score : 0;
+  document.getElementById('lkpi-clusters').textContent    = clusters.length || '0';
+  document.getElementById('lkpi-gaps').textContent        = gaps;
+  document.getElementById('lkpi-priority-max').textContent = maxP || '—';
+  document.getElementById('lkpi-recom').textContent       = recommendations.length;
+  document.getElementById('learning-last-update').textContent =
+    learningClusters ? 'Dados processados pelo n8n (diário)' : 'Calculado em tempo real';
+
+  // Clusters table
+  const tbody = document.getElementById('clusters-body');
+  if (clusters.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:24px;">Dados insuficientes — aguardar mais interações V5.</td></tr>';
+  } else {
+    tbody.innerHTML = clusters.map((c, i) => {
+      const prioClass  = c.prioridade === 'CRITICO' ? 'critico' : c.prioridade === 'ALTO' ? 'alto' : 'medio';
+      const scoreColor = c.avg_score >= 0.75 ? '#10b981' : c.avg_score >= 0.5 ? '#f59e0b' : '#ef4444';
+      const barClass   = c.priority_score >= 70 ? 'high' : c.priority_score >= 40 ? 'mid' : 'low';
+      return `<tr>
+        <td style="color:#9ca3af;font-size:12px;">${i + 1}</td>
+        <td style="font-weight:600;">${c.categoria}</td>
+        <td style="font-size:12px;color:#374151;">${c.erro}</td>
+        <td style="font-weight:700;">${c.total}</td>
+        <td style="font-weight:700;color:${scoreColor};">${c.avg_score.toFixed(2)}</td>
+        <td style="font-weight:700;color:${c.nao_pct > 40 ? '#ef4444' : '#6b7280'};">${c.nao_pct}%</td>
+        <td>
+          <div class="priority-bar-wrap">
+            <div class="priority-bar">
+              <div class="priority-bar-fill ${barClass}" style="width:${Math.min(c.priority_score, 100)}%;"></div>
+            </div>
+            <span style="font-size:12px;font-weight:700;min-width:28px;">${c.priority_score}</span>
+          </div>
+        </td>
+        <td>
+          <span class="cluster-tag ${prioClass}">${c.prioridade}</span>
+          ${c.is_gap ? ' <span class="gap-badge">GAP</span>' : ''}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Recommendations cards
+  const recomContainer = document.getElementById('recom-cards-container');
+  if (recommendations.length === 0) {
+    recomContainer.innerHTML = '<div style="text-align:center;color:#9ca3af;grid-column:span 2;padding:24px;">Nenhum gap identificado com os dados atuais.</div>';
+  } else {
+    recomContainer.innerHTML = recommendations.map(r => {
+      const tipoClass = r.tipo_acao === 'prompt' ? 'prompt' : r.tipo_acao === 'zendesk' ? 'zendesk' : 'devops';
+      const prioClass = r.prioridade === 'CRITICO' ? 'critico' : r.prioridade === 'ALTO' ? 'alto' : 'medio';
+      return `<div class="recommendation-card tipo-${tipoClass}">
+        <div class="recommendation-title">${r.categoria} — ${r.erro}</div>
+        <div class="recommendation-meta">${r.frequencia} ocorrências · ${r.nao_pct}% não assertiva · Priority: <strong>${r.priority_score}</strong></div>
+        <div class="recommendation-acao">→ ${r.acao_recomendada}</div>
+        <div>
+          <span class="cluster-tag ${prioClass}">${r.prioridade}</span>
+          <span class="tipo-tag ${tipoClass}" style="margin-left:4px;">${r.tipo_acao.toUpperCase()}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Chart: assertividade por categoria
+  destroyChart('assertiv-categoria');
+  const catGroups = {};
+  clusters.forEach(c => {
+    if (!catGroups[c.categoria]) catGroups[c.categoria] = { total: 0, assertivas: 0 };
+    catGroups[c.categoria].total     += c.total;
+    catGroups[c.categoria].assertivas += (c.total - c.nao);
+  });
+  const catLabels = Object.keys(catGroups);
+  const catPcts   = catLabels.map(cat => {
+    const g = catGroups[cat];
+    return g.total ? Math.round((g.assertivas / g.total) * 100) : 0;
+  });
+  const catColors = catPcts.map(p => p >= 75 ? '#10b981' : p >= 50 ? '#f59e0b' : '#ef4444');
+
+  const ctxCat = document.getElementById('chart-assertiv-categoria').getContext('2d');
+  charts['assertiv-categoria'] = new Chart(ctxCat, {
+    type: 'bar',
+    data: {
+      labels: catLabels,
+      datasets: [{ label: '% Assertiva', data: catPcts, backgroundColor: catColors, borderRadius: 6 }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { min: 0, max: 100, ticks: { callback: v => v + '%', font: { size: 11 } }, grid: { color: '#f3f4f6' } },
+        y: { ticks: { font: { size: 11 } }, grid: { display: false } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.raw}% assertiva` } }
+      }
+    }
+  });
 }
 
 // ============================================================
